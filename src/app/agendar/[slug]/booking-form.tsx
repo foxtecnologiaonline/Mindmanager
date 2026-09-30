@@ -16,6 +16,13 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Telefone BR: DDD (2) + número (8 ou 9 dígitos), com ou sem +55/9º dígito.
+function isValidBrazilPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  const local = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
+  return local.length === 10 || local.length === 11;
+}
+
 export function BookingForm({
   tenantSlug,
   services,
@@ -67,6 +74,13 @@ export function BookingForm({
 
   function submitBooking() {
     if (!selectedSlot) return;
+    if (!isValidBrazilPhone(patientPhone)) {
+      setMessage({
+        type: "error",
+        text: "Telefone inválido. Informe DDD + número (ex: 11 91234-5678).",
+      });
+      return;
+    }
     setMessage(null);
     startTransition(async () => {
       const result = await bookPublicAppointment({

@@ -54,6 +54,44 @@ export async function login(formData: FormData) {
   redirect("/dashboard");
 }
 
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email"));
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${await siteUrl()}/auth/confirm?next=/redefinir-senha`,
+  });
+
+  // Não revelamos se o e-mail existe ou não (evita enumeração de contas) —
+  // sempre mostramos a mesma mensagem, só logamos erro real no servidor.
+  if (error) {
+    console.error("[requestPasswordReset]", error.message);
+  }
+
+  redirect("/esqueci-senha?sent=1");
+}
+
+export async function updatePassword(formData: FormData) {
+  const password = String(formData.get("password"));
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    redirect(`/redefinir-senha?error=${encodeURIComponent(error.message)}`);
+  }
+
+  redirect("/dashboard?passwordUpdated=1");
+}
+
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();

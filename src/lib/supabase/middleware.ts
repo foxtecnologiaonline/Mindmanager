@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Páginas de auth: acessíveis sem sessão, mas usuário já logado é
 // redirecionado para o dashboard (não faz sentido ver login de novo).
-const AUTH_PATHS = ["/login", "/signup", "/auth"];
+const AUTH_PATHS = ["/login", "/signup", "/auth", "/esqueci-senha"];
 
 // Sempre públicas, independente de sessão: landing page, página de
 // agendamento do paciente e rotas server-to-server (cron), que têm sua

@@ -47,12 +47,14 @@ export default async function LoginPage({
         >
           Entrar
         </button>
-        <p className="text-sm text-neutral-600">
-          Ainda não tem conta?{" "}
+        <div className="flex items-center justify-between text-sm text-neutral-600">
           <Link href="/signup" className="underline">
             Criar conta
           </Link>
-        </p>
+          <Link href="/esqueci-senha" className="underline">
+            Esqueci minha senha
+          </Link>
+        </div>
       </form>
     </main>
   );
