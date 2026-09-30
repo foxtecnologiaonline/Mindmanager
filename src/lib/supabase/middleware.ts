@@ -5,10 +5,15 @@ import { NextResponse, type NextRequest } from "next/server";
 // redirecionado para o dashboard (não faz sentido ver login de novo).
 const AUTH_PATHS = ["/login", "/signup", "/auth"];
 
-// Sempre públicas, independente de sessão: página de agendamento do
-// paciente e rotas server-to-server (cron), que têm sua própria checagem
-// de segurança (CRON_SECRET) em vez de depender de cookie de usuário.
-const ALWAYS_PUBLIC_PATHS = ["/agendar", "/api"];
+// Sempre públicas, independente de sessão: landing page, página de
+// agendamento do paciente e rotas server-to-server (cron), que têm sua
+// própria checagem de segurança (CRON_SECRET) em vez de depender de
+// cookie de usuário. Prefixos "startsWith" — nunca "/" aqui, ou todo o
+// resto do app (inclusive /dashboard) passaria a ser público.
+const ALWAYS_PUBLIC_PREFIXES = ["/agendar", "/api"];
+// Match exato: essas rotas não têm sub-rotas e "/" via startsWith casaria
+// com qualquer caminho.
+const ALWAYS_PUBLIC_EXACT = ["/"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,7 +22,10 @@ export async function updateSession(request: NextRequest) {
   // não precisam pagar o round-trip de auth.getUser() a cada requisição
   // (importa especialmente para /agendar, que é a página do paciente, e
   // para /api/cron, chamada por um scheduler externo sem cookies).
-  if (ALWAYS_PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  if (
+    ALWAYS_PUBLIC_EXACT.includes(pathname) ||
+    ALWAYS_PUBLIC_PREFIXES.some((path) => pathname.startsWith(path))
+  ) {
     return NextResponse.next({ request });
   }
 
