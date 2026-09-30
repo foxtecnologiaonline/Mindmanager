@@ -4,9 +4,26 @@ import { signup } from "@/lib/actions";
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; checkEmail?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, checkEmail } = await searchParams;
+
+  if (checkEmail) {
+    return (
+      <main className="flex flex-1 items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-4 text-center">
+          <h1 className="text-2xl font-semibold">Confirme seu e-mail</h1>
+          <p className="text-sm text-neutral-600">
+            Enviamos um link de confirmação para o e-mail informado. Clique
+            nele para ativar sua conta e continuar o cadastro da clínica.
+          </p>
+          <Link href="/login" className="text-sm underline">
+            Já confirmou? Entrar
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">

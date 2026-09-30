@@ -1,7 +1,16 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+
+async function siteUrl() {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const protocol = h.get("x-forwarded-proto") ?? "http";
+  return `${protocol}://${host}`;
+}
 
 export async function signup(formData: FormData) {
   const email = String(formData.get("email"));
@@ -9,14 +18,23 @@ export async function signup(formData: FormData) {
   const fullName = String(formData.get("fullName"));
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: `${await siteUrl()}/auth/confirm`,
+    },
   });
 
   if (error) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+  }
+
+  // Projetos Supabase com "confirmar e-mail" ativado não criam sessão aqui:
+  // o usuário só autentica de fato ao clicar no link recebido por e-mail.
+  if (!data.session) {
+    redirect("/signup?checkEmail=1");
   }
 
   redirect("/onboarding");
@@ -60,23 +78,16 @@ export async function createTenant(formData: FormData) {
     redirect("/login");
   }
 
-  const { data: tenant, error: tenantError } = await supabase
-    .from("tenants")
-    .insert({ name, slug: `${slug}-${user.id.slice(0, 6)}` })
-    .select("id")
-    .single();
+  // Insert de tenant + vínculo do profile acontecem numa única transação
+  // no banco (função security definer), evitando tenant órfão em caso de
+  // falha parcial e o problema de RLS filtrar o RETURNING do insert.
+  const { error: rpcError } = await supabase.rpc(
+    "create_tenant_for_current_user",
+    { tenant_name: name, tenant_slug: `${slug}-${user.id.slice(0, 6)}` },
+  );
 
-  if (tenantError) {
-    redirect(`/onboarding?error=${encodeURIComponent(tenantError.message)}`);
-  }
-
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({ tenant_id: tenant!.id })
-    .eq("id", user.id);
-
-  if (profileError) {
-    redirect(`/onboarding?error=${encodeURIComponent(profileError.message)}`);
+  if (rpcError) {
+    redirect(`/onboarding?error=${encodeURIComponent(rpcError.message)}`);
   }
 
   redirect("/dashboard");
