@@ -1,9 +1,26 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth"];
+// Páginas de auth: acessíveis sem sessão, mas usuário já logado é
+// redirecionado para o dashboard (não faz sentido ver login de novo).
+const AUTH_PATHS = ["/login", "/signup", "/auth"];
+
+// Sempre públicas, independente de sessão: página de agendamento do
+// paciente e rotas server-to-server (cron), que têm sua própria checagem
+// de segurança (CRON_SECRET) em vez de depender de cookie de usuário.
+const ALWAYS_PUBLIC_PATHS = ["/agendar", "/api"];
 
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Curto-circuito antes de sequer criar o client: rotas sempre-públicas
+  // não precisam pagar o round-trip de auth.getUser() a cada requisição
+  // (importa especialmente para /agendar, que é a página do paciente, e
+  // para /api/cron, chamada por um scheduler externo sem cookies).
+  if (ALWAYS_PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -31,17 +48,15 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublicPath = PUBLIC_PATHS.some((path) =>
-    request.nextUrl.pathname.startsWith(path),
-  );
+  const isAuthPath = AUTH_PATHS.some((path) => pathname.startsWith(path));
 
-  if (!user && !isPublicPath) {
+  if (!user && !isAuthPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (user && isPublicPath) {
+  if (user && isAuthPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

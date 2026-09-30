@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/actions";
@@ -14,7 +15,9 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, tenant_id, tenants ( name, billing_status, trial_ends_at )")
+    .select(
+      "full_name, role, tenant_id, tenants ( name, slug, billing_status, trial_ends_at )",
+    )
     .eq("id", user.id)
     .single();
 
@@ -54,10 +57,19 @@ export default async function DashboardPage() {
             </p>
           )}
         </div>
-        <p className="text-sm text-neutral-500">
-          F0 concluído: autenticação, tenant e perfil funcionando. Próxima
-          fase (F1) adiciona a agenda.
-        </p>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/dashboard/agenda"
+            className="rounded bg-black px-4 py-2 text-sm text-white"
+          >
+            Ver agenda
+          </Link>
+          {tenant?.slug && (
+            <Link href={`/agendar/${tenant.slug}`} className="text-sm underline">
+              Link público de agendamento
+            </Link>
+          )}
+        </div>
       </div>
     </main>
   );
