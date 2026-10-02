@@ -143,7 +143,7 @@ export async function createManualAppointment(formData: FormData) {
 
   const startsAt = new Date(`${date}T${time}:00${BRAZIL_UTC_OFFSET}`);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .rpc("book_appointment", {
       p_tenant_slug: tenantSlug,
       p_professional_id: professionalId,
@@ -159,7 +159,12 @@ export async function createManualAppointment(formData: FormData) {
     redirect(`/dashboard/agenda?error=${encodeURIComponent(error.message)}&date=${date}`);
   }
 
-  await sendWhatsAppMessage(patientPhone, buildConfirmationQuestion(startsAt));
+  const appointment = data as { id: string };
+  await sendWhatsAppMessage(
+    patientPhone,
+    buildConfirmationQuestion(startsAt),
+    `confirm-question-${appointment.id}`,
+  );
 
   revalidatePath("/dashboard/agenda");
 }
@@ -230,11 +235,12 @@ export async function bookPublicAppointment(input: {
     return { success: false as const, error: error.message };
   }
 
-  const appointment = data as { starts_at: string };
+  const appointment = data as { id: string; starts_at: string };
 
   await sendWhatsAppMessage(
     input.patientPhone,
     buildConfirmationQuestion(new Date(appointment.starts_at)),
+    `confirm-question-${appointment.id}`,
   );
 
   return { success: true as const, error: null };

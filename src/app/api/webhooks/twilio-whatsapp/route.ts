@@ -8,6 +8,7 @@ import {
   buildNoMatchReply,
   buildUnrecognizedReply,
 } from "@/lib/notifications/messages";
+import { isNoReply, isYesReply, normalizeReply } from "@/lib/notifications/reply-matching";
 
 /**
  * Recebe a resposta SIM/NÃO do paciente via WhatsApp (webhook de inbound
@@ -42,17 +43,6 @@ function validTwilioSignature(
   if (expectedBuf.length !== signatureBuf.length) return false;
   return crypto.timingSafeEqual(expectedBuf, signatureBuf);
 }
-
-function normalize(text: string) {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-const YES_WORDS = ["sim", "s", "confirmo", "confirmar", "yes"];
-const NO_WORDS = ["nao", "n", "cancelar", "cancelo", "no"];
 
 function emptyTwiml() {
   return new NextResponse("<Response></Response>", {
@@ -89,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceRoleKey);
 
-  const body = normalize(params["Body"] ?? "");
+  const body = normalizeReply(params["Body"] ?? "");
   const from = params["From"] ?? ""; // "whatsapp:+5511999999999"
   const fromDigits = from.replace(/\D/g, "");
   const last9 = fromDigits.slice(-9);
@@ -119,15 +109,29 @@ export async function POST(request: NextRequest) {
     return emptyTwiml();
   }
 
-  const isYes = YES_WORDS.includes(body);
-  const isNo = NO_WORDS.includes(body);
-
-  if (isYes) {
-    await supabase.from("appointments").update({ status: "confirmed" }).eq("id", match.id);
-    await sendWhatsAppMessage(match.patient_phone, buildConfirmedReply());
-  } else if (isNo) {
-    await supabase.from("appointments").update({ status: "cancelled" }).eq("id", match.id);
-    await sendWhatsAppMessage(match.patient_phone, buildCancelledReply());
+  if (isYesReply(body)) {
+    // Update condicional (só se ainda pending): torna o handler idempotente
+    // mesmo sem tabela de dedupe de entrega — uma reentrega do Twilio não
+    // reprocessa nem manda a resposta de novo.
+    const { data: updated } = await supabase
+      .from("appointments")
+      .update({ status: "confirmed" })
+      .eq("id", match.id)
+      .eq("status", "pending")
+      .select("id");
+    if (updated && updated.length > 0) {
+      await sendWhatsAppMessage(match.patient_phone, buildConfirmedReply());
+    }
+  } else if (isNoReply(body)) {
+    const { data: updated } = await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", match.id)
+      .eq("status", "pending")
+      .select("id");
+    if (updated && updated.length > 0) {
+      await sendWhatsAppMessage(match.patient_phone, buildCancelledReply());
+    }
   } else {
     await sendWhatsAppMessage(match.patient_phone, buildUnrecognizedReply());
   }

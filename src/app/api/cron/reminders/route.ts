@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const result = await sendWhatsAppMessage(
       appt.patient_phone,
       buildReminder24h(new Date(appt.starts_at), appt.status === "pending"),
+      `reminder-${appt.id}`,
     );
 
     if (result.sent) {

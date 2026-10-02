@@ -1,3 +1,7 @@
+// "Responda 1/2" em vez de SIM/NÃO/CANCELAR: essas palavras são reservadas
+// no ZapScript para opt-out de campanha (PARAR/SAIR/CANCELAR) e opt-in
+// (SIM) — colidem com a resposta do paciente e disparam réplica automática
+// de campanha além da nossa. 1/2 evita a colisão.
 export function buildConfirmationQuestion(startsAt: Date) {
   const when = startsAt.toLocaleString("pt-BR", {
     dateStyle: "short",
@@ -5,7 +9,7 @@ export function buildConfirmationQuestion(startsAt: Date) {
     timeZone: "America/Sao_Paulo",
   });
 
-  return `Você tem uma consulta marcada para ${when}. Confirma? Responda SIM para confirmar ou NÃO para cancelar.`;
+  return `Você tem uma consulta marcada para ${when}. Responda 1 para confirmar ou 2 para cancelar.`;
 }
 
 export function buildConfirmedReply() {
@@ -17,7 +21,7 @@ export function buildCancelledReply() {
 }
 
 export function buildUnrecognizedReply() {
-  return 'Não entendi sua resposta. Responda apenas "SIM" para confirmar ou "NÃO" para cancelar a consulta.';
+  return 'Não entendi sua resposta. Responda apenas "1" para confirmar ou "2" para cancelar a consulta.';
 }
 
 export function buildNoMatchReply() {
@@ -32,7 +36,7 @@ export function buildReminder24h(startsAt: Date, pending: boolean) {
   });
 
   if (pending) {
-    return `Lembrete: você ainda não confirmou sua consulta de amanhã, ${when}. Responda SIM para confirmar ou NÃO para cancelar.`;
+    return `Lembrete: você ainda não confirmou sua consulta de amanhã, ${when}. Responda 1 para confirmar ou 2 para cancelar.`;
   }
 
   return `Lembrete: você tem consulta amanhã, ${when}.`;

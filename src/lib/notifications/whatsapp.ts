@@ -1,18 +1,75 @@
+const ZAPSCRIPT_API_KEY = process.env.ZAPSCRIPT_API_KEY;
+const ZAPSCRIPT_NUMBER_ID = process.env.ZAPSCRIPT_NUMBER_ID;
+const ZAPSCRIPT_BASE_URL = process.env.ZAPSCRIPT_BASE_URL || "https://api.zapscript.me";
+
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // ex: "whatsapp:+14155238886"
 
 /**
- * Envia uma mensagem de WhatsApp via Twilio. Se as credenciais não
- * estiverem configuradas, apenas loga (não quebra o fluxo de agendamento
- * — a reserva é sempre mais importante que o aviso).
+ * Envia uma mensagem de WhatsApp. Ordem de preferência: ZapScript (API
+ * pública v1, provedor padrão do produto) → Twilio (se configurado em vez
+ * do ZapScript) → log (se nenhum estiver configurado — não quebra o fluxo
+ * de agendamento, a reserva é sempre mais importante que o aviso).
+ *
+ * `idempotencyKey`: evite reenvio duplicado em retry do seu lado (ex:
+ * `confirm-<appointmentId>`). Só tem efeito com o provedor ZapScript, que
+ * suporta a chave nativamente; é ignorado nos outros caminhos.
  */
-export async function sendWhatsAppMessage(to: string, body: string) {
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM) {
-    console.log(`[whatsapp:not-configured] para ${to}: ${body}`);
-    return { sent: false as const };
+export async function sendWhatsAppMessage(
+  to: string,
+  body: string,
+  idempotencyKey?: string,
+) {
+  if (ZAPSCRIPT_API_KEY && ZAPSCRIPT_NUMBER_ID) {
+    return sendViaZapScript(to, body, idempotencyKey);
   }
 
+  if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_WHATSAPP_FROM) {
+    return sendViaTwilio(to, body);
+  }
+
+  console.log(`[whatsapp:not-configured] para ${to}: ${body}`);
+  return { sent: false as const };
+}
+
+async function sendViaZapScript(to: string, body: string, idempotencyKey?: string) {
+  const digits = to.replace(/\D/g, "");
+
+  try {
+    const response = await fetch(`${ZAPSCRIPT_BASE_URL}/public/v1/messages`, {
+      method: "POST",
+      headers: {
+        "X-Api-Key": ZAPSCRIPT_API_KEY!,
+        "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+      body: JSON.stringify({
+        numberId: ZAPSCRIPT_NUMBER_ID,
+        to: digits,
+        body,
+      }),
+      // O POST só responde depois de tentar enviar de verdade (até 3
+      // tentativas, 15s cada) — a doc do ZapScript recomenda timeout de
+      // cliente de pelo menos 60s.
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      console.error(`[zapscript:error] ${response.status} para ${to} — ${errorBody}`);
+      return { sent: false as const };
+    }
+
+    const data = (await response.json()) as { status?: string };
+    return { sent: data.status === "sent" };
+  } catch (err) {
+    console.error("[zapscript:error]", err);
+    return { sent: false as const };
+  }
+}
+
+async function sendViaTwilio(to: string, body: string) {
   const digits = to.replace(/\D/g, "");
   const toAddress = `whatsapp:+${digits}`;
 
@@ -28,7 +85,7 @@ export async function sendWhatsAppMessage(to: string, body: string) {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          From: TWILIO_WHATSAPP_FROM,
+          From: TWILIO_WHATSAPP_FROM!,
           To: toAddress,
           Body: body,
         }),
