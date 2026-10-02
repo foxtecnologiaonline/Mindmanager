@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
+import { buildReminder24h } from "@/lib/notifications/messages";
 
 /**
  * Envia lembrete de consulta ~24h antes do horário marcado. Pensada para
@@ -36,8 +37,8 @@ export async function GET(request: NextRequest) {
 
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("id, patient_phone, starts_at")
-    .eq("status", "confirmed")
+    .select("id, patient_phone, starts_at, status")
+    .in("status", ["confirmed", "pending"])
     .is("reminder_sent_at", null)
     .gte("starts_at", windowStart)
     .lte("starts_at", windowEnd);
@@ -48,15 +49,9 @@ export async function GET(request: NextRequest) {
 
   let sent = 0;
   for (const appt of appointments ?? []) {
-    const when = new Date(appt.starts_at).toLocaleString("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: "America/Sao_Paulo",
-    });
-
     const result = await sendWhatsAppMessage(
       appt.patient_phone,
-      `Lembrete: você tem consulta amanhã, ${when}.`,
+      buildReminder24h(new Date(appt.starts_at), appt.status === "pending"),
     );
 
     if (result.sent) {

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
 import { isValidBrazilPhone } from "@/lib/scheduling/validation";
+import { buildConfirmationQuestion } from "@/lib/notifications/messages";
 
 // Deslocamento fixo usado para combinar data+hora vindos de formulários da
 // equipe com o timezone assumido pelas funções SQL (America/Sao_Paulo, sem
@@ -142,19 +143,23 @@ export async function createManualAppointment(formData: FormData) {
 
   const startsAt = new Date(`${date}T${time}:00${BRAZIL_UTC_OFFSET}`);
 
-  const { error } = await supabase.rpc("book_appointment", {
-    p_tenant_slug: tenantSlug,
-    p_professional_id: professionalId,
-    p_service_type_id: serviceTypeId,
-    p_patient_name: patientName,
-    p_patient_phone: patientPhone,
-    p_patient_email: patientEmail || null,
-    p_starts_at: startsAt.toISOString(),
-  });
+  const { error } = await supabase
+    .rpc("book_appointment", {
+      p_tenant_slug: tenantSlug,
+      p_professional_id: professionalId,
+      p_service_type_id: serviceTypeId,
+      p_patient_name: patientName,
+      p_patient_phone: patientPhone,
+      p_patient_email: patientEmail || null,
+      p_starts_at: startsAt.toISOString(),
+    })
+    .single();
 
   if (error) {
     redirect(`/dashboard/agenda?error=${encodeURIComponent(error.message)}&date=${date}`);
   }
+
+  await sendWhatsAppMessage(patientPhone, buildConfirmationQuestion(startsAt));
 
   revalidatePath("/dashboard/agenda");
 }
@@ -164,6 +169,17 @@ export async function cancelAppointment(formData: FormData) {
   const id = String(formData.get("id"));
 
   await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
+
+  revalidatePath("/dashboard/agenda");
+}
+
+// Fallback manual: equipe confirma por telefone/presencialmente, ou o
+// Twilio não está configurado neste ambiente (sem webhook de resposta).
+export async function confirmAppointmentManually(formData: FormData) {
+  const { supabase } = await requireProfile();
+  const id = String(formData.get("id"));
+
+  await supabase.from("appointments").update({ status: "confirmed" }).eq("id", id);
 
   revalidatePath("/dashboard/agenda");
 }
@@ -215,15 +231,10 @@ export async function bookPublicAppointment(input: {
   }
 
   const appointment = data as { starts_at: string };
-  const when = new Date(appointment.starts_at).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: "America/Sao_Paulo",
-  });
 
   await sendWhatsAppMessage(
     input.patientPhone,
-    `Consulta confirmada para ${when}. Se precisar remarcar, entre em contato com a clínica.`,
+    buildConfirmationQuestion(new Date(appointment.starts_at)),
   );
 
   return { success: true as const, error: null };

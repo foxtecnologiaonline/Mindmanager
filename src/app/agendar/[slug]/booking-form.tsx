@@ -92,7 +92,10 @@ export function BookingForm({
         return;
       }
 
-      setMessage({ type: "success", text: "Consulta agendada com sucesso!" });
+      setMessage({
+        type: "success",
+        text: "Horário reservado! Você vai receber uma mensagem no WhatsApp para confirmar.",
+      });
       setSlots((prev) => prev.filter((s) => s !== selectedSlot));
       setSelectedSlot(null);
       setPatientName("");
