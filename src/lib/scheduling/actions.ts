@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
+import { isValidBrazilPhone } from "@/lib/scheduling/validation";
 
 // Deslocamento fixo usado para combinar data+hora vindos de formulários da
 // equipe com o timezone assumido pelas funções SQL (America/Sao_Paulo, sem
@@ -130,6 +131,14 @@ export async function createManualAppointment(formData: FormData) {
   const patientName = String(formData.get("patientName") ?? "").trim();
   const patientPhone = String(formData.get("patientPhone") ?? "").trim();
   const patientEmail = String(formData.get("patientEmail") ?? "").trim();
+
+  if (!isValidBrazilPhone(patientPhone)) {
+    redirect(
+      `/dashboard/agenda?error=${encodeURIComponent(
+        "Telefone inválido. Informe DDD + número (ex: 11 91234-5678).",
+      )}&date=${date}`,
+    );
+  }
 
   const startsAt = new Date(`${date}T${time}:00${BRAZIL_UTC_OFFSET}`);
 

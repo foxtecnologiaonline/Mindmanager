@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { bookPublicAppointment, getAvailableSlots } from "@/lib/scheduling/actions";
+import { isValidBrazilPhone } from "@/lib/scheduling/validation";
 
 type ServiceRow = {
   professionalId: string;
@@ -14,13 +15,6 @@ type ServiceRow = {
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
-}
-
-// Telefone BR: DDD (2) + número (8 ou 9 dígitos), com ou sem +55/9º dígito.
-function isValidBrazilPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  const local = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
-  return local.length === 10 || local.length === 11;
 }
 
 export function BookingForm({
