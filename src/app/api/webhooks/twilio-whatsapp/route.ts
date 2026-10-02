@@ -11,7 +11,7 @@ import {
 import { isNoReply, isYesReply, normalizeReply } from "@/lib/notifications/reply-matching";
 
 /**
- * Recebe a resposta SIM/NÃO do paciente via WhatsApp (webhook de inbound
+ * Recebe a resposta 1/2 do paciente via WhatsApp (webhook de inbound
  * message do Twilio). Configure no console do Twilio, em "A message comes
  * in", a URL exata desta rota (sem query string) — a assinatura é
  * calculada em cima da URL configurada, então ela precisa bater

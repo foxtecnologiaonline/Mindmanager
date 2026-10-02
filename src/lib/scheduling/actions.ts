@@ -178,8 +178,9 @@ export async function cancelAppointment(formData: FormData) {
   revalidatePath("/dashboard/agenda");
 }
 
-// Fallback manual: equipe confirma por telefone/presencialmente, ou o
-// Twilio não está configurado neste ambiente (sem webhook de resposta).
+// Fallback manual: equipe confirma por telefone/presencialmente, ou
+// nenhum provedor de WhatsApp (ZapScript/Twilio) está configurado neste
+// ambiente.
 export async function confirmAppointmentManually(formData: FormData) {
   const { supabase } = await requireProfile();
   const id = String(formData.get("id"));

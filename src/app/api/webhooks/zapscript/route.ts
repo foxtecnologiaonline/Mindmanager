@@ -38,6 +38,12 @@ function validZapScriptSignature(secret: string, signature: string, rawBody: str
 export async function POST(request: NextRequest) {
   const secret = process.env.ZAPSCRIPT_WEBHOOK_SECRET;
   const signature = request.headers.get("x-zapscript-signature");
+  // Id único desta entrega — usado como Idempotency-Key das respostas que
+  // não têm uma mudança de status no banco pra se apoiar (no-match,
+  // resposta não reconhecida). Uma reentrega da mesma entrega reusa a
+  // mesma key e o ZapScript não manda a mensagem de novo; uma entrega
+  // nova (outra mensagem do paciente) tem delivery id diferente e envia.
+  const deliveryId = request.headers.get("x-zapscript-delivery");
 
   if (!secret || !signature) {
     return new NextResponse(null, { status: 403 });
@@ -97,14 +103,18 @@ export async function POST(request: NextRequest) {
   );
 
   if (!match) {
-    await sendWhatsAppMessage(contactPhone, buildNoMatchReply());
+    await sendWhatsAppMessage(
+      contactPhone,
+      buildNoMatchReply(),
+      deliveryId ? `reply-no-match-${deliveryId}` : undefined,
+    );
     return NextResponse.json({ ok: true });
   }
 
   if (isYesReply(text)) {
-    // Update condicional (só se ainda pending): idempotente mesmo sem
-    // tabela de dedupe por X-ZapScript-Delivery — uma reentrega não manda
-    // a resposta de novo nem reprocessa o que já foi processado.
+    // Update condicional (só se ainda pending): já é idempotente por si só
+    // (uma reentrega não reprocessa nem manda a resposta de novo, porque o
+    // segundo update não afeta linha nenhuma), sem precisar do delivery id.
     const { data: updated } = await supabase
       .from("appointments")
       .update({ status: "confirmed" })
@@ -136,7 +146,7 @@ export async function POST(request: NextRequest) {
     await sendWhatsAppMessage(
       match.patient_phone,
       buildUnrecognizedReply(),
-      `reply-unrecognized-${match.id}-${Date.now()}`,
+      deliveryId ? `reply-unrecognized-${deliveryId}` : undefined,
     );
   }
 
