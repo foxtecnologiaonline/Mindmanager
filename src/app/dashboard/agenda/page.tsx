@@ -77,38 +77,38 @@ export default async function AgendaPage({
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Agenda</h1>
-          <Link href="/dashboard/agenda/configuracoes" className="text-sm underline">
+          <h1 className="heading text-2xl">Agenda</h1>
+          <Link href="/dashboard/agenda/configuracoes" className="link-accent text-sm">
             Configurar serviços e horários
           </Link>
         </div>
 
         {error && (
-          <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>
+          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">{error}</p>
         )}
 
         <div className="flex items-center justify-between text-sm">
-          <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="underline">
+          <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="link-accent">
             &larr; dia anterior
           </Link>
-          <span className="font-medium">
+          <span className="font-medium text-ink">
             {new Date(`${date}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
               weekday: "long",
               day: "2-digit",
               month: "long",
             })}
           </span>
-          <Link href={`/dashboard/agenda?date=${addDays(date, 1)}`} className="underline">
+          <Link href={`/dashboard/agenda?date=${addDays(date, 1)}`} className="link-accent">
             próximo dia &rarr;
           </Link>
         </div>
 
         {(professionals ?? []).map((prof) => (
-          <div key={prof.id} className="space-y-2 rounded border p-4">
-            <h2 className="font-medium">{prof.full_name}</h2>
+          <div key={prof.id} className="card space-y-2 p-4">
+            <h2 className="font-medium text-ink">{prof.full_name}</h2>
             <ul className="space-y-1 text-sm">
               {(byProfessional.get(prof.id) ?? []).length === 0 && (
-                <li className="text-neutral-500">Sem agendamentos neste dia.</li>
+                <li className="text-muted-soft">Sem agendamentos neste dia.</li>
               )}
               {(byProfessional.get(prof.id) ?? []).map((appt) => {
                 const service = Array.isArray(appt.service_types)
@@ -117,10 +117,10 @@ export default async function AgendaPage({
                 return (
                   <li
                     key={appt.id}
-                    className="flex items-center justify-between gap-2 border-b py-1 last:border-0"
+                    className="flex items-center justify-between gap-2 border-b border-border py-1 last:border-0"
                   >
                     <span
-                      className={appt.status === "cancelled" ? "line-through text-neutral-400" : ""}
+                      className={appt.status === "cancelled" ? "text-muted-soft line-through" : "text-ink"}
                     >
                       {new Date(appt.starts_at).toLocaleTimeString("pt-BR", {
                         hour: "2-digit",
@@ -132,7 +132,7 @@ export default async function AgendaPage({
                     {appt.status === "confirmed" && (
                       <form action={cancelAppointment}>
                         <input type="hidden" name="id" value={appt.id} />
-                        <button type="submit" className="text-xs text-red-600 underline">
+                        <button type="submit" className="text-xs font-medium text-red-600 hover:text-red-700">
                           cancelar
                         </button>
                       </form>
@@ -144,20 +144,16 @@ export default async function AgendaPage({
           </div>
         ))}
 
-        <details className="rounded border p-4">
-          <summary className="cursor-pointer text-sm font-medium">
+        <details className="card p-4">
+          <summary className="cursor-pointer text-sm font-medium text-ink">
             Agendar manualmente
           </summary>
           <form action={createManualAppointment} className="mt-4 space-y-3 text-sm">
             <input type="hidden" name="date" value={date} />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="font-medium">Profissional</label>
-                <select
-                  name="professionalId"
-                  required
-                  className="w-full rounded border px-2 py-1"
-                >
+                <label className="font-medium text-ink">Profissional</label>
+                <select name="professionalId" required className="input">
                   {(professionals ?? []).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.full_name}
@@ -166,12 +162,8 @@ export default async function AgendaPage({
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="font-medium">Serviço</label>
-                <select
-                  name="serviceTypeId"
-                  required
-                  className="w-full rounded border px-2 py-1"
-                >
+                <label className="font-medium text-ink">Serviço</label>
+                <select name="serviceTypeId" required className="input">
                   {(serviceTypes ?? []).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.duration_minutes}min)
@@ -180,50 +172,37 @@ export default async function AgendaPage({
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="font-medium">Horário</label>
-                <input
-                  type="time"
-                  name="time"
-                  required
-                  className="w-full rounded border px-2 py-1"
-                />
+                <label className="font-medium text-ink">Horário</label>
+                <input type="time" name="time" required className="input" />
               </div>
               <div className="space-y-1">
-                <label className="font-medium">Nome do paciente</label>
-                <input
-                  name="patientName"
-                  required
-                  className="w-full rounded border px-2 py-1"
-                />
+                <label className="font-medium text-ink">Nome do paciente</label>
+                <input name="patientName" required className="input" />
               </div>
               <div className="space-y-1">
-                <label className="font-medium">Telefone</label>
+                <label className="font-medium text-ink">Telefone</label>
                 <input
                   name="patientPhone"
                   required
                   placeholder="55119..."
-                  className="w-full rounded border px-2 py-1"
+                  className="input"
                 />
               </div>
               <div className="space-y-1">
-                <label className="font-medium">E-mail (opcional)</label>
-                <input
-                  name="patientEmail"
-                  type="email"
-                  className="w-full rounded border px-2 py-1"
-                />
+                <label className="font-medium text-ink">E-mail (opcional)</label>
+                <input name="patientEmail" type="email" className="input" />
               </div>
             </div>
-            <button type="submit" className="rounded bg-black px-4 py-2 text-white">
+            <button type="submit" className="btn-primary">
               Agendar
             </button>
           </form>
         </details>
 
         {(serviceTypes ?? []).length === 0 && (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-muted-soft">
             Nenhum serviço cadastrado ainda.{" "}
-            <Link href="/dashboard/agenda/configuracoes" className="underline">
+            <Link href="/dashboard/agenda/configuracoes" className="link-accent">
               Configure os tipos de consulta
             </Link>{" "}
             antes de agendar.

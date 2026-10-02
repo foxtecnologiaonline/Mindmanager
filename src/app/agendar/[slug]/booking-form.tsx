@@ -109,20 +109,20 @@ export function BookingForm({
 
   if (professionals.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted-soft">
         Nenhum horário disponível para agendamento no momento.
       </p>
     );
   }
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className="card space-y-4 p-6 text-sm">
       <div className="space-y-1">
-        <label className="font-medium">Profissional</label>
+        <label className="font-medium text-ink">Profissional</label>
         <select
           value={professionalId}
           onChange={(e) => handleProfessionalChange(e.target.value)}
-          className="w-full rounded border px-3 py-2"
+          className="input"
         >
           {professionals.map((p) => (
             <option key={p.id} value={p.id}>
@@ -133,7 +133,7 @@ export function BookingForm({
       </div>
 
       <div className="space-y-1">
-        <label className="font-medium">Tipo de consulta</label>
+        <label className="font-medium text-ink">Tipo de consulta</label>
         <select
           value={serviceTypeId}
           onChange={(e) => {
@@ -141,7 +141,7 @@ export function BookingForm({
             setSlots([]);
             setSelectedSlot(null);
           }}
-          className="w-full rounded border px-3 py-2"
+          className="input"
         >
           {servicesForProfessional.map((s) => (
             <option key={s.serviceTypeId} value={s.serviceTypeId}>
@@ -153,7 +153,7 @@ export function BookingForm({
       </div>
 
       <div className="space-y-1">
-        <label className="font-medium">Data</label>
+        <label className="font-medium text-ink">Data</label>
         <input
           type="date"
           value={date}
@@ -163,16 +163,11 @@ export function BookingForm({
             setSlots([]);
             setSelectedSlot(null);
           }}
-          className="w-full rounded border px-3 py-2"
+          className="input"
         />
       </div>
 
-      <button
-        type="button"
-        onClick={loadSlots}
-        disabled={isPending}
-        className="rounded border px-4 py-2"
-      >
+      <button type="button" onClick={loadSlots} disabled={isPending} className="btn-secondary">
         Ver horários disponíveis
       </button>
 
@@ -183,9 +178,11 @@ export function BookingForm({
               key={slot}
               type="button"
               onClick={() => setSelectedSlot(slot)}
-              className={`rounded border px-3 py-1 ${
-                selectedSlot === slot ? "bg-black text-white" : ""
-              }`}
+              className={
+                selectedSlot === slot
+                  ? "rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white"
+                  : "rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-ink hover:bg-accent-soft"
+              }
             >
               {new Date(slot).toLocaleTimeString("pt-BR", {
                 hour: "2-digit",
@@ -198,46 +195,46 @@ export function BookingForm({
       )}
 
       {slots.length === 0 && date && (
-        <p className="text-neutral-500">
+        <p className="text-muted-soft">
           Clique em &quot;Ver horários disponíveis&quot; para essa data.
         </p>
       )}
 
       {selectedSlot && (
-        <div className="space-y-3 rounded border p-4">
+        <div className="space-y-3 rounded-xl border border-border bg-paper p-4">
           <div className="space-y-1">
-            <label className="font-medium">Nome completo</label>
+            <label className="font-medium text-ink">Nome completo</label>
             <input
               value={patientName}
               onChange={(e) => setPatientName(e.target.value)}
               required
-              className="w-full rounded border px-3 py-2"
+              className="input"
             />
           </div>
           <div className="space-y-1">
-            <label className="font-medium">Telefone (WhatsApp)</label>
+            <label className="font-medium text-ink">Telefone (WhatsApp)</label>
             <input
               value={patientPhone}
               onChange={(e) => setPatientPhone(e.target.value)}
               required
               placeholder="55119..."
-              className="w-full rounded border px-3 py-2"
+              className="input"
             />
           </div>
           <div className="space-y-1">
-            <label className="font-medium">E-mail (opcional)</label>
+            <label className="font-medium text-ink">E-mail (opcional)</label>
             <input
               type="email"
               value={patientEmail}
               onChange={(e) => setPatientEmail(e.target.value)}
-              className="w-full rounded border px-3 py-2"
+              className="input"
             />
           </div>
           <button
             type="button"
             onClick={submitBooking}
             disabled={isPending || !patientName || !patientPhone}
-            className="w-full rounded bg-black py-2 text-white disabled:opacity-50"
+            className="btn-primary w-full"
           >
             {isPending ? "Agendando..." : "Confirmar agendamento"}
           </button>
@@ -246,7 +243,7 @@ export function BookingForm({
 
       {message && (
         <p
-          className={`rounded p-2 ${
+          className={`rounded-lg p-2 ${
             message.type === "error" ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"
           }`}
         >

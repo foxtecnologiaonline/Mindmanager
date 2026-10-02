@@ -34,23 +34,23 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">{tenant?.name}</h1>
-            <p className="text-sm text-neutral-600">
+            <h1 className="heading text-2xl">{tenant?.name}</h1>
+            <p className="text-sm text-muted">
               {profile.full_name} · {profile.role}
             </p>
           </div>
           <form action={logout}>
-            <button type="submit" className="text-sm underline">
+            <button type="submit" className="link-accent text-sm">
               Sair
             </button>
           </form>
         </div>
-        <div className="rounded border p-4 text-sm">
+        <div className="card p-4 text-sm">
           <p>
             Plano: <strong>{tenant?.billing_status}</strong>
           </p>
           {tenant?.billing_status === "trial" && (
-            <p className="text-neutral-600">
+            <p className="text-muted">
               Trial até{" "}
               {tenant?.trial_ends_at &&
                 new Date(tenant.trial_ends_at).toLocaleDateString("pt-BR")}
@@ -58,14 +58,11 @@ export default async function DashboardPage() {
           )}
         </div>
         <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard/agenda"
-            className="rounded bg-black px-4 py-2 text-sm text-white"
-          >
+          <Link href="/dashboard/agenda" className="btn-primary">
             Ver agenda
           </Link>
           {tenant?.slug && (
-            <Link href={`/agendar/${tenant.slug}`} className="text-sm underline">
+            <Link href={`/agendar/${tenant.slug}`} className="link-accent text-sm">
               Link público de agendamento
             </Link>
           )}

@@ -10,27 +10,21 @@ export default async function LoginPage({
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form action={login} className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-semibold">Entrar</h1>
+      <form action={login} className="card w-full max-w-sm space-y-4 p-8">
+        <h1 className="heading text-2xl">Entrar</h1>
         {error && (
-          <p className="rounded bg-red-50 p-2 text-sm text-red-600">
+          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">
             {error}
           </p>
         )}
         <div className="space-y-1">
-          <label htmlFor="email" className="text-sm font-medium">
+          <label htmlFor="email" className="text-sm font-medium text-ink">
             E-mail
           </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            className="w-full rounded border px-3 py-2"
-          />
+          <input id="email" name="email" type="email" required className="input" />
         </div>
         <div className="space-y-1">
-          <label htmlFor="password" className="text-sm font-medium">
+          <label htmlFor="password" className="text-sm font-medium text-ink">
             Senha
           </label>
           <input
@@ -38,20 +32,17 @@ export default async function LoginPage({
             name="password"
             type="password"
             required
-            className="w-full rounded border px-3 py-2"
+            className="input"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full rounded bg-black py-2 text-white"
-        >
+        <button type="submit" className="btn-primary w-full">
           Entrar
         </button>
-        <div className="flex items-center justify-between text-sm text-neutral-600">
-          <Link href="/signup" className="underline">
+        <div className="flex items-center justify-between text-sm text-muted">
+          <Link href="/signup" className="link-accent">
             Criar conta
           </Link>
-          <Link href="/esqueci-senha" className="underline">
+          <Link href="/esqueci-senha" className="link-accent">
             Esqueci minha senha
           </Link>
         </div>

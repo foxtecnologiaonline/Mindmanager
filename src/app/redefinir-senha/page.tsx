@@ -9,13 +9,13 @@ export default async function ResetPasswordPage({
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form action={updatePassword} className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-semibold">Definir nova senha</h1>
+      <form action={updatePassword} className="card w-full max-w-sm space-y-4 p-8">
+        <h1 className="heading text-2xl">Definir nova senha</h1>
         {error && (
-          <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>
+          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">{error}</p>
         )}
         <div className="space-y-1">
-          <label htmlFor="password" className="text-sm font-medium">
+          <label htmlFor="password" className="text-sm font-medium text-ink">
             Nova senha
           </label>
           <input
@@ -24,13 +24,10 @@ export default async function ResetPasswordPage({
             type="password"
             minLength={6}
             required
-            className="w-full rounded border px-3 py-2"
+            className="input"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full rounded bg-black py-2 text-white"
-        >
+        <button type="submit" className="btn-primary w-full">
           Salvar nova senha
         </button>
       </form>

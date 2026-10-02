@@ -43,8 +43,8 @@ export default async function BookingPage({
   return (
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-lg space-y-6">
-        <h1 className="text-2xl font-semibold">{tenantName}</h1>
-        <p className="text-sm text-neutral-600">Agende sua consulta online.</p>
+        <h1 className="heading text-2xl">{tenantName}</h1>
+        <p className="text-sm text-muted">Agende sua consulta online.</p>
         <BookingForm tenantSlug={slug} services={services} />
       </div>
     </main>

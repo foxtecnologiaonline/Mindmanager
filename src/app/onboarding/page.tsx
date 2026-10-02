@@ -29,31 +29,23 @@ export default async function OnboardingPage({
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form action={createTenant} className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-semibold">Sua clínica</h1>
-        <p className="text-sm text-neutral-600">
+      <form action={createTenant} className="card w-full max-w-sm space-y-4 p-8">
+        <h1 className="heading text-2xl">Sua clínica</h1>
+        <p className="text-sm text-muted">
           Como se chama sua clínica ou consultório?
         </p>
         {error && (
-          <p className="rounded bg-red-50 p-2 text-sm text-red-600">
+          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">
             {error}
           </p>
         )}
         <div className="space-y-1">
-          <label htmlFor="name" className="text-sm font-medium">
+          <label htmlFor="name" className="text-sm font-medium text-ink">
             Nome da clínica
           </label>
-          <input
-            id="name"
-            name="name"
-            required
-            className="w-full rounded border px-3 py-2"
-          />
+          <input id="name" name="name" required className="input" />
         </div>
-        <button
-          type="submit"
-          className="w-full rounded bg-black py-2 text-white"
-        >
+        <button type="submit" className="btn-primary w-full">
           Continuar
         </button>
       </form>

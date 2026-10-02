@@ -68,85 +68,91 @@ export default async function AgendaConfigPage({
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-3xl space-y-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Configurações da agenda</h1>
-          <Link href="/dashboard/agenda" className="text-sm underline">
+          <h1 className="heading text-2xl">Configurações da agenda</h1>
+          <Link href="/dashboard/agenda" className="link-accent text-sm">
             Voltar para a agenda
           </Link>
         </div>
 
         {error && (
-          <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>
+          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">{error}</p>
         )}
 
         <section className="space-y-3">
-          <h2 className="font-medium">Tipos de consulta</h2>
+          <h2 className="font-medium text-ink">Tipos de consulta</h2>
           <ul className="space-y-1 text-sm">
             {(serviceTypes ?? []).map((s) => (
-              <li key={s.id} className="flex items-center justify-between border-b py-1">
-                <span>
+              <li
+                key={s.id}
+                className="flex items-center justify-between border-b border-border py-1"
+              >
+                <span className="text-ink">
                   {s.name} — {s.duration_minutes}min
                   {s.price_cents != null &&
                     ` — R$ ${(s.price_cents / 100).toFixed(2)}`}
                 </span>
                 <form action={deactivateServiceType}>
                   <input type="hidden" name="id" value={s.id} />
-                  <button type="submit" className="text-xs text-red-600 underline">
+                  <button type="submit" className="text-xs font-medium text-red-600 hover:text-red-700">
                     remover
                   </button>
                 </form>
               </li>
             ))}
             {(serviceTypes ?? []).length === 0 && (
-              <li className="text-neutral-500">Nenhum tipo de consulta cadastrado.</li>
+              <li className="text-muted-soft">Nenhum tipo de consulta cadastrado.</li>
             )}
           </ul>
           <form action={createServiceType} className="flex flex-wrap items-end gap-2 text-sm">
             <div className="space-y-1">
-              <label className="font-medium">Nome</label>
-              <input name="name" required className="rounded border px-2 py-1" />
+              <label className="font-medium text-ink">Nome</label>
+              <input name="name" required className="input" />
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Duração (min)</label>
+              <label className="font-medium text-ink">Duração (min)</label>
               <input
                 name="durationMinutes"
                 type="number"
                 min={5}
                 step={5}
                 required
-                className="w-24 rounded border px-2 py-1"
+                className="input w-24"
               />
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Preço (R$, opcional)</label>
+              <label className="font-medium text-ink">Preço (R$, opcional)</label>
               <input
                 name="price"
                 type="number"
                 min={0}
                 step="0.01"
-                className="w-28 rounded border px-2 py-1"
+                className="input w-28"
               />
             </div>
-            <button type="submit" className="rounded bg-black px-3 py-1.5 text-white">
+            <button type="submit" className="btn-primary">
               Adicionar
             </button>
           </form>
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-medium">Horários de trabalho</h2>
+          <h2 className="font-medium text-ink">Horários de trabalho</h2>
           <ul className="space-y-1 text-sm">
             {(workingHours ?? []).map((w) => {
               const prof = (professionals ?? []).find((p) => p.id === w.professional_id);
               return (
-                <li key={w.id} className="flex items-center justify-between border-b py-1">
-                  <span>
+                <li
+                  key={w.id}
+                  className="flex items-center justify-between border-b border-border py-1"
+                >
+                  <span className="text-ink">
                     {prof?.full_name} — {WEEKDAYS[w.day_of_week]} — {w.start_time.slice(0, 5)}
                     {" às "}
                     {w.end_time.slice(0, 5)}
                   </span>
                   <form action={deleteWorkingHour}>
                     <input type="hidden" name="id" value={w.id} />
-                    <button type="submit" className="text-xs text-red-600 underline">
+                    <button type="submit" className="text-xs font-medium text-red-600 hover:text-red-700">
                       remover
                     </button>
                   </form>
@@ -154,13 +160,13 @@ export default async function AgendaConfigPage({
               );
             })}
             {(workingHours ?? []).length === 0 && (
-              <li className="text-neutral-500">Nenhum horário cadastrado.</li>
+              <li className="text-muted-soft">Nenhum horário cadastrado.</li>
             )}
           </ul>
           <form action={createWorkingHour} className="flex flex-wrap items-end gap-2 text-sm">
             <div className="space-y-1">
-              <label className="font-medium">Profissional</label>
-              <select name="professionalId" required className="rounded border px-2 py-1">
+              <label className="font-medium text-ink">Profissional</label>
+              <select name="professionalId" required className="input">
                 {(professionals ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name}
@@ -169,8 +175,8 @@ export default async function AgendaConfigPage({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Dia</label>
-              <select name="dayOfWeek" required className="rounded border px-2 py-1">
+              <label className="font-medium text-ink">Dia</label>
+              <select name="dayOfWeek" required className="input">
                 {WEEKDAYS.map((label, i) => (
                   <option key={i} value={i}>
                     {label}
@@ -179,19 +185,14 @@ export default async function AgendaConfigPage({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Início</label>
-              <input
-                name="startTime"
-                type="time"
-                required
-                className="rounded border px-2 py-1"
-              />
+              <label className="font-medium text-ink">Início</label>
+              <input name="startTime" type="time" required className="input" />
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Fim</label>
-              <input name="endTime" type="time" required className="rounded border px-2 py-1" />
+              <label className="font-medium text-ink">Fim</label>
+              <input name="endTime" type="time" required className="input" />
             </div>
-            <button type="submit" className="rounded bg-black px-3 py-1.5 text-white">
+            <button type="submit" className="btn-primary">
               Adicionar
             </button>
           </form>

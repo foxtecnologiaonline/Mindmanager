@@ -11,13 +11,13 @@ export default async function ForgotPasswordPage({
   if (sent) {
     return (
       <main className="flex flex-1 items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-4 text-center">
-          <h1 className="text-2xl font-semibold">Verifique seu e-mail</h1>
-          <p className="text-sm text-neutral-600">
+        <div className="card w-full max-w-sm space-y-4 p-8 text-center">
+          <h1 className="heading text-2xl">Verifique seu e-mail</h1>
+          <p className="text-sm text-muted">
             Se houver uma conta com esse e-mail, enviamos um link para
             redefinir a senha.
           </p>
-          <Link href="/login" className="text-sm underline">
+          <Link href="/login" className="link-accent text-sm">
             Voltar para o login
           </Link>
         </div>
@@ -27,31 +27,25 @@ export default async function ForgotPasswordPage({
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form action={requestPasswordReset} className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-semibold">Esqueci minha senha</h1>
-        <p className="text-sm text-neutral-600">
+      <form
+        action={requestPasswordReset}
+        className="card w-full max-w-sm space-y-4 p-8"
+      >
+        <h1 className="heading text-2xl">Esqueci minha senha</h1>
+        <p className="text-sm text-muted">
           Informe seu e-mail para receber um link de redefinição de senha.
         </p>
         <div className="space-y-1">
-          <label htmlFor="email" className="text-sm font-medium">
+          <label htmlFor="email" className="text-sm font-medium text-ink">
             E-mail
           </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            className="w-full rounded border px-3 py-2"
-          />
+          <input id="email" name="email" type="email" required className="input" />
         </div>
-        <button
-          type="submit"
-          className="w-full rounded bg-black py-2 text-white"
-        >
+        <button type="submit" className="btn-primary w-full">
           Enviar link
         </button>
-        <p className="text-sm text-neutral-600">
-          <Link href="/login" className="underline">
+        <p className="text-sm text-muted">
+          <Link href="/login" className="link-accent">
             Voltar para o login
           </Link>
         </p>
