@@ -42,6 +42,13 @@ Pagamento (PIX/cartão) · contas a receber · recibo
 ### F4 — Retenção
 Lembrete pós-consulta · NPS
 
+### Adiado para próxima versão (decisão explícita, não esquecimento)
+- **Convite de equipe**: hoje só existe o usuário que fez o cadastro
+  inicial (sempre `admin`, via trigger `handle_new_user`). Não há como
+  adicionar profissional/recepção ao mesmo tenant. Trava clínicas com
+  mais de 1 profissional, mesmo a agenda já sendo multi-profissional
+  por design. Decisão do usuário em 2026-10-02: fica para depois.
+
 ## Não-negociáveis (todas as fases)
 - LGPD: dado de saúde é dado sensível → consentimento, criptografia, log de acesso
 - Auditoria imutável em prontuário (quem / quando / o quê)
