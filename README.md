@@ -24,7 +24,7 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
 3. Aplique as migrations em `supabase/migrations/` **em ordem** (SQL
    Editor do painel Supabase, ou `supabase db push` com a CLI):
    `0001_foundation.sql` → `0002_scheduling.sql` → `0003_booking_hardening.sql`
-   → `0004_patient_confirmation.sql`.
+   → `0004_patient_confirmation.sql` → `0005_perf_rate_limit_branding.sql`.
 4. Instale dependências e rode:
 
    ```bash
@@ -106,6 +106,21 @@ Sem nenhum dos dois provedores configurado, o envio cai para um log no
 console (não quebra o agendamento) e o fluxo funciona só via
 confirmação manual pela equipe.
 
+## Performance, branding e rate limiting (0005)
+
+- **Logo da clínica**: em `/dashboard/agenda/configuracoes`, envie uma
+  imagem (PNG/JPG/WEBP/SVG, até 2MB) — fica salva no bucket público
+  `tenant-logos` do Supabase Storage e aparece no dashboard e na
+  página pública de agendamento. A migration `0005` cria o bucket e as
+  policies (cada clínica só escreve na própria pasta, `tenant_id/...`).
+- **Rate limiting**: `bookPublicAppointment` (5/min por IP) e
+  `getAvailableSlots` (30/min por IP) usam a função SQL
+  `check_rate_limit` (também da migration `0005`) — atômica mesmo em
+  ambiente serverless (Vercel), ao contrário de um contador em memória.
+- **Cache da página pública**: `/agendar/[slug]` usa um client Supabase
+  sem cookies (`src/lib/supabase/public.ts`) para poder cachear por 60s
+  (`revalidate`) — evita bater no banco a cada visita.
+
 ## Estrutura relevante
 
 ```
@@ -117,6 +132,6 @@ src/proxy.ts              guarda de rotas (login/dashboard/rotas públicas)
 src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
-supabase/migrations/      schema SQL (0001 fundação … 0004 confirmação)
+supabase/migrations/      schema SQL (0001 fundação … 0005 perf/branding/rate limit)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```

@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Toast } from "@/components/toast";
+import { uploadTenantLogo } from "@/lib/branding/actions";
 import {
   createServiceType,
   createWorkingHour,
@@ -18,13 +21,7 @@ const WEEKDAYS = [
   "Sábado",
 ];
 
-export default async function AgendaConfigPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-
+export default async function AgendaConfigPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -36,13 +33,15 @@ export default async function AgendaConfigPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id")
+    .select("tenant_id, tenants ( logo_url )")
     .eq("id", user.id)
     .single();
 
   if (!profile?.tenant_id) {
     redirect("/onboarding");
   }
+
+  const tenant = Array.isArray(profile.tenants) ? profile.tenants[0] : profile.tenants;
 
   const [{ data: professionals }, { data: serviceTypes }, { data: workingHours }] =
     await Promise.all([
@@ -74,9 +73,42 @@ export default async function AgendaConfigPage({
           </Link>
         </div>
 
-        {error && (
-          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">{error}</p>
-        )}
+        <Suspense fallback={null}>
+          <Toast />
+        </Suspense>
+
+        <section className="space-y-3">
+          <h2 className="font-medium text-ink">Logo da clínica</h2>
+          <p className="text-sm text-muted-soft">
+            Aparece na página pública de agendamento e no dashboard.
+          </p>
+          <div className="flex items-center gap-4">
+            {tenant?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- logo de tenant arbitrário, sem domínio fixo pra configurar no next.config
+              <img
+                src={tenant.logo_url}
+                alt="Logo atual"
+                className="h-14 w-14 rounded-lg border border-border object-contain"
+              />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-soft">
+                sem logo
+              </div>
+            )}
+            <form action={uploadTenantLogo} className="flex items-center gap-2 text-sm">
+              <input
+                type="file"
+                name="logo"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                required
+                className="text-xs"
+              />
+              <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
+                Enviar logo
+              </button>
+            </form>
+          </div>
+        </section>
 
         <section className="space-y-3">
           <h2 className="font-medium text-ink">Tipos de consulta</h2>

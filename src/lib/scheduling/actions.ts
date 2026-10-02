@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
 import { isValidBrazilPhone } from "@/lib/scheduling/validation";
 import { buildConfirmationQuestion } from "@/lib/notifications/messages";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Deslocamento fixo usado para combinar data+hora vindos de formulários da
 // equipe com o timezone assumido pelas funções SQL (America/Sao_Paulo, sem
@@ -195,6 +196,14 @@ export async function getAvailableSlots(
   serviceTypeId: string,
   day: string,
 ) {
+  const ip = await getClientIp();
+  // Generoso (o usuário legítimo chama isso a cada troca de data/serviço
+  // na tela pública): só pra impedir scraping/DoS trivial no endpoint.
+  const allowed = await checkRateLimit(`slots:${ip}`, 30, 60);
+  if (!allowed) {
+    return { slots: [] as string[], error: "Muitas tentativas. Aguarde um minuto." };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_available_slots", {
     p_professional_id: professionalId,
@@ -218,6 +227,15 @@ export async function bookPublicAppointment(input: {
   patientEmail: string;
   startsAt: string;
 }) {
+  const ip = await getClientIp();
+  // Mais estrito que o de slots: isso grava no banco e dispara WhatsApp,
+  // então cada tentativa tem custo real (e é o alvo óbvio de abuso —
+  // lotar a agenda de terceiros ou gerar custo de envio de mensagem).
+  const allowed = await checkRateLimit(`book:${ip}`, 5, 60);
+  if (!allowed) {
+    return { success: false as const, error: "Muitas tentativas. Aguarde um minuto e tente de novo." };
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase

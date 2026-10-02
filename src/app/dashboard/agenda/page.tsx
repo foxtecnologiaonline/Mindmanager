@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Toast } from "@/components/toast";
 import {
   cancelAppointment,
   confirmAppointmentManually,
@@ -17,21 +19,72 @@ function addDays(dateStr: string, days: number) {
   return formatDate(d);
 }
 
+// Instanciado uma vez: criar um Intl.DateTimeFormat por chamada pesa
+// quando a grade tem muitos agendamentos (cada bloco chama isso 2x).
+const BR_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "America/Sao_Paulo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function minutesOfDayBR(iso: string) {
-  const [h, m] = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .format(new Date(iso))
-    .split(":");
+  const [h, m] = BR_TIME_FORMATTER.format(new Date(iso)).split(":");
   return Number(h) * 60 + Number(m);
 }
 
 function minutesFromTimeString(t: string) {
   const [h, m] = t.split(":");
   return Number(h) * 60 + Number(m);
+}
+
+// Agrupa agendamentos que se sobrepõem em "clusters" e distribui cada um
+// numa coluna dentro do cluster (como agendas do tipo Google Calendar),
+// em vez de empilhar tudo na largura cheia — sem isso, dois agendamentos
+// no mesmo horário (ex: forçado manualmente fora do expediente) ficam
+// visualmente um por cima do outro.
+function layoutOverlapLanes(items: { id: string; startMin: number; endMin: number }[]) {
+  const sorted = [...items].sort((a, b) => a.startMin - b.startMin);
+  const result = new Map<string, { col: number; cols: number }>();
+
+  let colEndMin: number[] = [];
+  const colOf = new Map<string, number>();
+  let clusterEnd = -Infinity;
+  let clusterCols = 0;
+  let clusterItemIds: string[] = [];
+
+  function flushCluster() {
+    for (const id of clusterItemIds) {
+      result.set(id, { col: colOf.get(id)!, cols: clusterCols });
+    }
+    clusterItemIds = [];
+    clusterCols = 0;
+  }
+
+  for (const item of sorted) {
+    if (item.startMin >= clusterEnd) {
+      flushCluster();
+      colEndMin = [];
+      clusterEnd = item.endMin;
+    } else {
+      clusterEnd = Math.max(clusterEnd, item.endMin);
+    }
+
+    let col = colEndMin.findIndex((end) => end <= item.startMin);
+    if (col === -1) {
+      col = colEndMin.length;
+      colEndMin.push(item.endMin);
+    } else {
+      colEndMin[col] = item.endMin;
+    }
+
+    colOf.set(item.id, col);
+    clusterCols = Math.max(clusterCols, colEndMin.length);
+    clusterItemIds.push(item.id);
+  }
+  flushCluster();
+
+  return result;
 }
 
 const PX_PER_MIN = 1.4;
@@ -46,12 +99,15 @@ const STATUS_LABEL: Record<string, string> = {
   no_show: "Faltou",
 };
 
+// Borda sólida/tracejada varia junto com a cor — não é só a cor que
+// diferencia pendente/confirmado de cancelado/concluído (acessibilidade
+// para quem não distingue bem as cores do âmbar/teal).
 const STATUS_CLASS: Record<string, string> = {
-  pending: "border-amber-300 bg-amber-50 text-amber-900",
-  confirmed: "border-accent bg-accent-soft text-ink",
-  cancelled: "border-border bg-paper text-muted-soft line-through opacity-70",
-  completed: "border-border bg-paper text-muted-soft",
-  no_show: "border-border bg-paper text-muted-soft",
+  pending: "border-2 border-amber-300 bg-amber-50 text-amber-900",
+  confirmed: "border-2 border-accent bg-accent-soft text-ink",
+  cancelled: "border-2 border-dashed border-border bg-paper text-muted-soft line-through opacity-70",
+  completed: "border-2 border-dashed border-border bg-paper text-muted-soft",
+  no_show: "border-2 border-dashed border-border bg-paper text-muted-soft",
 };
 
 export default async function AgendaPage({
@@ -59,7 +115,7 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<{ date?: string; error?: string }>;
 }) {
-  const { date: dateParam, error } = await searchParams;
+  const { date: dateParam } = await searchParams;
   const date = dateParam ?? formatDate(new Date());
   const dayOfWeek = new Date(`${date}T00:00:00-03:00`).getUTCDay();
 
@@ -159,9 +215,9 @@ export default async function AgendaPage({
           </Link>
         </div>
 
-        {error && (
-          <p className="rounded-lg bg-red-50 p-2 text-sm text-red-600">{error}</p>
-        )}
+        <Suspense fallback={null}>
+          <Toast />
+        </Suspense>
 
         <div className="flex items-center justify-between text-sm">
           <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="link-accent">
@@ -192,15 +248,24 @@ export default async function AgendaPage({
 
         <div className="flex gap-3 text-xs text-muted">
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full border border-amber-300 bg-amber-50" />
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 rounded-full border-2 border-amber-300 bg-amber-50"
+            />
             Pendente
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full border border-accent bg-accent-soft" />
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 rounded-full border-2 border-accent bg-accent-soft"
+            />
             Confirmado
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full border border-border bg-paper" />
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-border bg-paper"
+            />
             Cancelado/concluído
           </span>
         </div>
@@ -247,21 +312,38 @@ export default async function AgendaPage({
                       "px)",
                   }}
                 >
-                  {(byProfessional.get(prof.id) ?? []).map((appt) => {
-                    const service = Array.isArray(appt.service_types)
-                      ? appt.service_types[0]
-                      : appt.service_types;
-                    const startMin = minutesOfDayBR(appt.starts_at);
-                    const endMin = minutesOfDayBR(appt.ends_at);
-                    const top = (startMin - gridStartMin) * PX_PER_MIN;
-                    const height = Math.max((endMin - startMin) * PX_PER_MIN, 34);
+                  {(() => {
+                    const dayAppts = byProfessional.get(prof.id) ?? [];
+                    const lanes = layoutOverlapLanes(
+                      dayAppts.map((a) => ({
+                        id: a.id,
+                        startMin: minutesOfDayBR(a.starts_at),
+                        endMin: minutesOfDayBR(a.ends_at),
+                      })),
+                    );
 
-                    return (
-                      <div
-                        key={appt.id}
-                        className={`absolute inset-x-1 overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight ${STATUS_CLASS[appt.status]}`}
-                        style={{ top, height }}
-                      >
+                    return dayAppts.map((appt) => {
+                      const service = Array.isArray(appt.service_types)
+                        ? appt.service_types[0]
+                        : appt.service_types;
+                      const startMin = minutesOfDayBR(appt.starts_at);
+                      const endMin = minutesOfDayBR(appt.ends_at);
+                      const top = (startMin - gridStartMin) * PX_PER_MIN;
+                      const height = Math.max((endMin - startMin) * PX_PER_MIN, 34);
+                      const { col, cols } = lanes.get(appt.id) ?? { col: 0, cols: 1 };
+                      const widthPct = 100 / cols;
+
+                      return (
+                        <div
+                          key={appt.id}
+                          className={`absolute overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight ${STATUS_CLASS[appt.status]}`}
+                          style={{
+                            top,
+                            height,
+                            left: `calc(${col * widthPct}% + 2px)`,
+                            width: `calc(${widthPct}% - 4px)`,
+                          }}
+                        >
                         <div className="font-semibold">
                           {String(Math.floor(startMin / 60)).padStart(2, "0")}:
                           {String(startMin % 60).padStart(2, "0")} · {appt.patient_name}
@@ -295,8 +377,9 @@ export default async function AgendaPage({
                           )}
                         </div>
                       </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               ))}
             </div>

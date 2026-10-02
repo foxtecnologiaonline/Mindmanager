@@ -38,6 +38,18 @@ body {
   color: var(--color-ink);
 }
 
+/* Foco visível em qualquer elemento interativo navegado por teclado —
+   antes só `.input` tinha estado de foco definido; botões/links usavam
+   o outline default do navegador (inconsistente entre eles). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 @layer components {
   .heading {
     font-family: var(--font-display), serif;
