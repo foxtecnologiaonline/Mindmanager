@@ -7,6 +7,7 @@ import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
 import { isValidBrazilPhone } from "@/lib/scheduling/validation";
 import { buildConfirmationQuestion } from "@/lib/notifications/messages";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
 
 // Deslocamento fixo usado para combinar data+hora vindos de formulários da
 // equipe com o timezone assumido pelas funções SQL (America/Sao_Paulo, sem
@@ -124,7 +125,7 @@ export async function deleteWorkingHour(formData: FormData) {
 }
 
 export async function createManualAppointment(formData: FormData) {
-  const { supabase, tenantSlug } = await requireProfile();
+  const { supabase, profile, tenantSlug } = await requireProfile();
 
   const professionalId = String(formData.get("professionalId"));
   const serviceTypeId = String(formData.get("serviceTypeId"));
@@ -161,10 +162,12 @@ export async function createManualAppointment(formData: FormData) {
   }
 
   const appointment = data as { id: string };
+  const senderOverride = await resolveWhatsappSender(profile.tenant_id);
   await sendWhatsAppMessage(
     patientPhone,
     buildConfirmationQuestion(startsAt),
     `confirm-question-${appointment.id}`,
+    senderOverride,
   );
 
   revalidatePath("/dashboard/agenda");
@@ -254,12 +257,14 @@ export async function bookPublicAppointment(input: {
     return { success: false as const, error: error.message };
   }
 
-  const appointment = data as { id: string; starts_at: string };
+  const appointment = data as { id: string; starts_at: string; tenant_id: string };
+  const senderOverride = await resolveWhatsappSender(appointment.tenant_id);
 
   await sendWhatsAppMessage(
     input.patientPhone,
     buildConfirmationQuestion(new Date(appointment.starts_at)),
     `confirm-question-${appointment.id}`,
+    senderOverride,
   );
 
   return { success: true as const, error: null };

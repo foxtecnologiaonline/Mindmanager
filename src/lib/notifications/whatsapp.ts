@@ -6,21 +6,29 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // ex: "whatsapp:+14155238886"
 
+export type WhatsAppSenderOverride = { apiKey: string; numberId: string };
+
 /**
- * Envia uma mensagem de WhatsApp. Ordem de preferência: ZapScript (API
- * pública v1, provedor padrão do produto) → Twilio (se configurado em vez
- * do ZapScript) → log (se nenhum estiver configurado — não quebra o fluxo
- * de agendamento, a reserva é sempre mais importante que o aviso).
+ * Envia uma mensagem de WhatsApp. Ordem de preferência: `senderOverride`
+ * (número próprio da clínica, ZapScript — ver resolveWhatsappSender) →
+ * ZapScript da plataforma (env vars, número compartilhado) → Twilio →
+ * log (se nada estiver configurado — não quebra o fluxo de agendamento,
+ * a reserva é sempre mais importante que o aviso).
  *
  * `idempotencyKey`: evite reenvio duplicado em retry do seu lado (ex:
- * `confirm-<appointmentId>`). Só tem efeito com o provedor ZapScript, que
- * suporta a chave nativamente; é ignorado nos outros caminhos.
+ * `confirm-<appointmentId>`). Só tem efeito nos caminhos ZapScript
+ * (nativo da API); é ignorado no Twilio.
  */
 export async function sendWhatsAppMessage(
   to: string,
   body: string,
   idempotencyKey?: string,
+  senderOverride?: WhatsAppSenderOverride,
 ) {
+  if (senderOverride) {
+    return sendViaZapScript(to, body, idempotencyKey, senderOverride);
+  }
+
   if (ZAPSCRIPT_API_KEY && ZAPSCRIPT_NUMBER_ID) {
     return sendViaZapScript(to, body, idempotencyKey);
   }
@@ -33,19 +41,26 @@ export async function sendWhatsAppMessage(
   return { sent: false as const };
 }
 
-async function sendViaZapScript(to: string, body: string, idempotencyKey?: string) {
+async function sendViaZapScript(
+  to: string,
+  body: string,
+  idempotencyKey?: string,
+  override?: WhatsAppSenderOverride,
+) {
   const digits = to.replace(/\D/g, "");
+  const apiKey = override?.apiKey ?? ZAPSCRIPT_API_KEY!;
+  const numberId = override?.numberId ?? ZAPSCRIPT_NUMBER_ID;
 
   try {
     const response = await fetch(`${ZAPSCRIPT_BASE_URL}/public/v1/messages`, {
       method: "POST",
       headers: {
-        "X-Api-Key": ZAPSCRIPT_API_KEY!,
+        "X-Api-Key": apiKey,
         "Content-Type": "application/json",
         ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: JSON.stringify({
-        numberId: ZAPSCRIPT_NUMBER_ID,
+        numberId,
         to: digits,
         body,
       }),

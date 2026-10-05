@@ -12,7 +12,9 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
 - **F1 — Agenda**: tipos de consulta, horários de trabalho por
   profissional, página pública de agendamento (`/agendar/[slug]`),
   calendário visual no dashboard, confirmação de agendamento por
-  WhatsApp (resposta "1"/"2", via ZapScript ou Twilio).
+  WhatsApp (resposta "1"/"2", via ZapScript ou Twilio), cada clínica
+  pode usar o número compartilhado da plataforma ou conectar o próprio
+  número via ZapScript.
 
 ## Setup local
 
@@ -24,7 +26,8 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
 3. Aplique as migrations em `supabase/migrations/` **em ordem** (SQL
    Editor do painel Supabase, ou `supabase db push` com a CLI):
    `0001_foundation.sql` → `0002_scheduling.sql` → `0003_booking_hardening.sql`
-   → `0004_patient_confirmation.sql` → `0005_perf_rate_limit_branding.sql`.
+   → `0004_patient_confirmation.sql` → `0005_perf_rate_limit_branding.sql`
+   → `0006_own_whatsapp_number.sql`.
 4. Instale dependências e rode:
 
    ```bash
@@ -106,6 +109,37 @@ Sem nenhum dos dois provedores configurado, o envio cai para um log no
 console (não quebra o agendamento) e o fluxo funciona só via
 confirmação manual pela equipe.
 
+## Número de WhatsApp: compartilhado ou próprio (0006)
+
+Por padrão, toda clínica manda mensagens pelo número **compartilhado**
+da plataforma (`ZAPSCRIPT_API_KEY`/`ZAPSCRIPT_NUMBER_ID` do ambiente).
+Em `/dashboard/agenda/configuracoes` (só admin), a clínica pode
+conectar o **próprio** número de WhatsApp — self-service, sem precisar
+de ninguém da plataforma fazer nada:
+
+1. A clínica conecta o WhatsApp dela no painel do ZapScript (QR code —
+   isso é feito no produto ZapScript, fora do MindManager).
+2. Cria uma API key própria com os scopes `messages:send` e
+   `webhooks:manage`.
+3. Cola a API key em "Número de WhatsApp" → o MindManager busca os
+   números conectados dessa conta (`GET /public/v1/numbers`), a clínica
+   escolhe um, e o sistema registra o webhook de resposta sozinho
+   (`POST /public/v1/webhooks`, com a URL dedicada
+   `/api/webhooks/zapscript/<tenantId>`), guardando o secret retornado.
+
+A partir daí, tudo desse tenant (pergunta de confirmação, lembrete
+24h, resposta do paciente) passa pelo número próprio — `resolveWhatsappSender`
+(`src/lib/notifications/sender-config.ts`) decide isso por tenant, lendo
+`tenants.whatsapp_mode` via service role (a API key e o secret do
+webhook nunca voltam pro client: `select` revogado para `authenticated`
+na migration `0006`). Desconectar volta pro número compartilhado e
+limpa as credenciais salvas.
+
+Número próprio via **Twilio não é suportado** nesse fluxo: validar um
+número de produção na API do WhatsApp Business via Twilio exige
+aprovação da Meta por número, feita manualmente fora do app — não é
+self-service como no ZapScript (que é produto da própria plataforma).
+
 ## Performance, branding e rate limiting (0005)
 
 - **Logo da clínica**: em `/dashboard/agenda/configuracoes`, envie uma
@@ -132,6 +166,7 @@ src/proxy.ts              guarda de rotas (login/dashboard/rotas públicas)
 src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
-supabase/migrations/      schema SQL (0001 fundação … 0005 perf/branding/rate limit)
+src/lib/integrations/     conexão de WhatsApp próprio por tenant (ZapScript)
+supabase/migrations/      schema SQL (0001 fundação … 0006 WhatsApp próprio)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```

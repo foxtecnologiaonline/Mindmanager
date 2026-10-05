@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Toast } from "@/components/toast";
+import { WhatsappConnection } from "@/components/whatsapp-connection";
 import { uploadTenantLogo } from "@/lib/branding/actions";
 import {
   createServiceType,
@@ -33,7 +34,7 @@ export default async function AgendaConfigPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id, tenants ( logo_url )")
+    .select("tenant_id, role, tenants ( logo_url, whatsapp_mode, whatsapp_number_id )")
     .eq("id", user.id)
     .single();
 
@@ -108,6 +109,19 @@ export default async function AgendaConfigPage() {
               </button>
             </form>
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-medium text-ink">Número de WhatsApp</h2>
+          <p className="text-sm text-muted-soft">
+            Define de onde saem a pergunta de confirmação e os lembretes — e pra onde o
+            paciente responde.
+          </p>
+          <WhatsappConnection
+            mode={(tenant?.whatsapp_mode as "shared" | "own") ?? "shared"}
+            numberId={tenant?.whatsapp_number_id ?? null}
+            isAdmin={profile.role === "admin"}
+          />
         </section>
 
         <section className="space-y-3">
