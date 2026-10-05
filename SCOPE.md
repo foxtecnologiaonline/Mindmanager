@@ -24,7 +24,12 @@ SaaS multi-tenant. Sem TISS no MVP.
 
 ### F0 — Fundação (bloqueia tudo)
 `tenant` · `profile` (papéis: admin / profissional / recepção) · Auth ·
-RLS por tenant · billing (trial → pago)
+RLS por tenant · ~~billing (trial → pago)~~ **desativado até segunda
+ordem** — decisão do usuário em 2026-10-05: só pensar em billing/Stripe
+depois do produto estar pronto. Hoje todo tenant fica em `trial`
+indefinidamente, sem nenhuma trava de acesso por status de pagamento
+(não existe nenhum código que bloqueie por `billing_status`/
+`trial_ends_at` — são só informativos no dashboard).
 
 ### F1 — Agenda
 Calendário por profissional · tipos/duração de consulta ·
