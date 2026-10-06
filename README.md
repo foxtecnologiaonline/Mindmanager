@@ -27,7 +27,7 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
    Editor do painel Supabase, ou `supabase db push` com a CLI):
    `0001_foundation.sql` → `0002_scheduling.sql` → `0003_booking_hardening.sql`
    → `0004_patient_confirmation.sql` → `0005_perf_rate_limit_branding.sql`
-   → `0006_own_whatsapp_number.sql`.
+   → `0006_own_whatsapp_number.sql` → `0007_auto_tenant_on_signup.sql`.
 4. Instale dependências e rode:
 
    ```bash
@@ -39,8 +39,12 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
 
 ## Fluxo implementado
 
-**Onboarding**: `/signup` → confirmação por e-mail (`/auth/confirm`) →
-`/onboarding` (cria o tenant/clínica) → `/dashboard`.
+**Onboarding**: `/signup` → (confirmação por e-mail via `/auth/confirm`,
+se "Confirm email" estiver ativo no projeto Supabase) → `/dashboard`.
+O tenant/clínica nasce automaticamente no trigger de signup (migration
+`0007`), com nome padrão — sem pergunta extra no meio. `/onboarding`
+só existe como fallback de segurança (provisiona um tenant se faltar,
+sem pedir nada, e redireciona).
 
 **Agenda**: no dashboard, `/dashboard/agenda/configuracoes` cadastra
 tipos de consulta e horários de trabalho por profissional;
@@ -167,6 +171,6 @@ src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
 src/lib/integrations/     conexão de WhatsApp próprio por tenant (ZapScript)
-supabase/migrations/      schema SQL (0001 fundação … 0006 WhatsApp próprio)
+supabase/migrations/      schema SQL (0001 fundação … 0007 tenant automático)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```
