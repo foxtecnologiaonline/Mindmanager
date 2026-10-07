@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { ensureTenantId } from "@/lib/tenant";
 
 const LOGO_BUCKET = "tenant-logos";
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2MB
@@ -20,15 +21,15 @@ export async function uploadTenantLogo(formData: FormData) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id, tenants ( slug )")
+    .select("tenant_id, full_name, tenants ( slug )")
     .eq("id", user.id)
     .single();
 
-  if (!profile?.tenant_id) {
-    redirect("/onboarding");
-  }
-
-  const tenant = Array.isArray(profile.tenants) ? profile.tenants[0] : profile.tenants;
+  // Rede de segurança: desde a migration 0007 isso não deveria faltar
+  // nunca (o tenant nasce no trigger de signup), mas resolve aqui mesmo
+  // em vez de redirecionar.
+  const tenantId = profile?.tenant_id ?? (await ensureTenantId(supabase, user.id, profile?.full_name ?? null));
+  const tenant = Array.isArray(profile?.tenants) ? profile.tenants[0] : profile?.tenants;
 
   const file = formData.get("logo");
   if (!(file instanceof File) || file.size === 0) {
@@ -54,7 +55,7 @@ export async function uploadTenantLogo(formData: FormData) {
   const ext = file.name.split(".").pop() ?? "png";
   // Pasta = tenant_id: é o que a policy de storage usa pra garantir que
   // uma clínica só escreve dentro da própria pasta (ver migration 0005).
-  const path = `${profile.tenant_id}/logo-${Date.now()}.${ext}`;
+  const path = `${tenantId}/logo-${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from(LOGO_BUCKET)
@@ -71,7 +72,7 @@ export async function uploadTenantLogo(formData: FormData) {
   const { error: updateError } = await supabase
     .from("tenants")
     .update({ logo_url: publicUrlData.publicUrl })
-    .eq("id", profile.tenant_id);
+    .eq("id", tenantId);
 
   if (updateError) {
     redirect(

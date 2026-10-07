@@ -8,6 +8,7 @@ import { isValidBrazilPhone } from "@/lib/scheduling/validation";
 import { buildConfirmationQuestion } from "@/lib/notifications/messages";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
+import { ensureTenantId } from "@/lib/tenant";
 
 // Deslocamento fixo usado para combinar data+hora vindos de formulários da
 // equipe com o timezone assumido pelas funções SQL (America/Sao_Paulo, sem
@@ -24,21 +25,28 @@ async function requireProfile() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, tenant_id, role, tenants ( slug )")
-    .eq("id", user.id)
-    .single();
+  const profileQuery = () =>
+    supabase
+      .from("profiles")
+      .select("id, tenant_id, role, full_name, tenants ( slug )")
+      .eq("id", user.id)
+      .single();
+
+  let { data: profile } = await profileQuery();
 
   if (!profile?.tenant_id) {
-    redirect("/onboarding");
+    // Rede de segurança: desde a migration 0007 isso não deveria faltar
+    // nunca (o tenant nasce no trigger de signup), mas resolve aqui
+    // mesmo em vez de redirecionar.
+    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
+    ({ data: profile } = await profileQuery());
   }
 
-  const tenant = Array.isArray(profile.tenants)
-    ? profile.tenants[0]
-    : profile.tenants;
+  const tenant = Array.isArray(profile!.tenants)
+    ? profile!.tenants[0]
+    : profile!.tenants;
 
-  return { supabase, profile, tenantSlug: tenant?.slug as string };
+  return { supabase, profile: profile!, tenantSlug: tenant?.slug as string };
 }
 
 export async function createServiceType(formData: FormData) {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ensureTenantId } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 import {
   cancelAppointment,
@@ -130,18 +131,19 @@ export default async function AgendaPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id")
+    .select("tenant_id, full_name")
     .eq("id", user.id)
     .single();
 
-  if (!profile?.tenant_id) {
-    redirect("/onboarding");
-  }
+  // Rede de segurança: desde a migration 0007 isso não deveria faltar
+  // nunca (o tenant nasce no trigger de signup), mas resolve aqui mesmo
+  // em vez de redirecionar — nunca sai desta página.
+  const tenantId = profile?.tenant_id ?? (await ensureTenantId(supabase, user.id, profile?.full_name ?? null));
 
   const { data: professionals } = await supabase
     .from("profiles")
     .select("id, full_name")
-    .eq("tenant_id", profile.tenant_id)
+    .eq("tenant_id", tenantId)
     .in("role", ["admin", "profissional"])
     .order("full_name");
 
@@ -152,7 +154,7 @@ export default async function AgendaPage({
       supabase
         .from("service_types")
         .select("id, name, duration_minutes")
-        .eq("tenant_id", profile.tenant_id)
+        .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("name"),
       supabase
@@ -160,7 +162,7 @@ export default async function AgendaPage({
         .select(
           "id, professional_id, patient_name, patient_phone, starts_at, ends_at, status, service_types ( name )",
         )
-        .eq("tenant_id", profile.tenant_id)
+        .eq("tenant_id", tenantId)
         .gte("starts_at", `${date}T00:00:00-03:00`)
         .lt("starts_at", `${addDays(date, 1)}T00:00:00-03:00`)
         .order("starts_at"),

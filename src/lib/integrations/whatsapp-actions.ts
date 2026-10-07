@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { ensureTenantId } from "@/lib/tenant";
 
 const ZAPSCRIPT_BASE_URL = process.env.ZAPSCRIPT_BASE_URL || "https://api.zapscript.me";
 
@@ -25,19 +26,20 @@ async function requireAdminProfile() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id, role")
+    .select("tenant_id, role, full_name")
     .eq("id", user.id)
     .single();
 
-  if (!profile?.tenant_id) {
-    redirect("/onboarding");
-  }
-
-  if (profile.role !== "admin") {
+  if (profile && profile.role !== "admin") {
     throw new Error("Apenas administradores podem configurar o WhatsApp da clínica.");
   }
 
-  return { supabase, tenantId: profile.tenant_id as string };
+  // Rede de segurança: desde a migration 0007 isso não deveria faltar
+  // nunca (o tenant nasce no trigger de signup), mas resolve aqui mesmo
+  // em vez de redirecionar.
+  const tenantId = profile?.tenant_id ?? (await ensureTenantId(supabase, user.id, profile?.full_name ?? null));
+
+  return { supabase, tenantId };
 }
 
 // Lista os números já conectados na conta ZapScript dessa API key — a

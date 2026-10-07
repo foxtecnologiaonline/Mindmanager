@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ensureTenantId } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 import { WhatsappConnection } from "@/components/whatsapp-connection";
 import { uploadTenantLogo } from "@/lib/branding/actions";
@@ -32,30 +33,38 @@ export default async function AgendaConfigPage() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("tenant_id, role, tenants ( logo_url, whatsapp_mode, whatsapp_number_id )")
-    .eq("id", user.id)
-    .single();
+  const profileQuery = () =>
+    supabase
+      .from("profiles")
+      .select("tenant_id, role, full_name, tenants ( logo_url, whatsapp_mode, whatsapp_number_id )")
+      .eq("id", user.id)
+      .single();
+
+  let { data: profile } = await profileQuery();
 
   if (!profile?.tenant_id) {
-    redirect("/onboarding");
+    // Rede de segurança: desde a migration 0007 isso não deveria faltar
+    // nunca (o tenant nasce no trigger de signup), mas resolve aqui
+    // mesmo em vez de redirecionar — nunca sai desta página.
+    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
+    ({ data: profile } = await profileQuery());
   }
 
-  const tenant = Array.isArray(profile.tenants) ? profile.tenants[0] : profile.tenants;
+  const tenantId = profile!.tenant_id as string;
+  const tenant = Array.isArray(profile!.tenants) ? profile!.tenants[0] : profile!.tenants;
 
   const [{ data: professionals }, { data: serviceTypes }, { data: workingHours }] =
     await Promise.all([
       supabase
         .from("profiles")
         .select("id, full_name")
-        .eq("tenant_id", profile.tenant_id)
+        .eq("tenant_id", tenantId)
         .in("role", ["admin", "profissional"])
         .order("full_name"),
       supabase
         .from("service_types")
         .select("id, name, duration_minutes, price_cents, active")
-        .eq("tenant_id", profile.tenant_id)
+        .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("name"),
       supabase
@@ -120,7 +129,7 @@ export default async function AgendaConfigPage() {
           <WhatsappConnection
             mode={(tenant?.whatsapp_mode as "shared" | "own") ?? "shared"}
             numberId={tenant?.whatsapp_number_id ?? null}
-            isAdmin={profile.role === "admin"}
+            isAdmin={profile!.role === "admin"}
           />
         </section>
 

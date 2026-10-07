@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/actions";
+import { ensureTenantId } from "@/lib/tenant";
 
 function todayRangeBR() {
   // Simplificação MVP: mesmo offset fixo usado no resto do produto
@@ -24,35 +25,44 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "full_name, role, tenant_id, tenants ( name, slug, billing_status, trial_ends_at, logo_url )",
-    )
-    .eq("id", user.id)
-    .single();
+  const profileQuery = () =>
+    supabase
+      .from("profiles")
+      .select(
+        "full_name, role, tenant_id, tenants ( name, slug, billing_status, trial_ends_at, logo_url )",
+      )
+      .eq("id", user.id)
+      .single();
+
+  let { data: profile } = await profileQuery();
 
   if (!profile?.tenant_id) {
-    redirect("/onboarding");
+    // Rede de segurança: desde a migration 0007 isso não deveria faltar
+    // nunca (o tenant nasce no trigger de signup), mas resolve aqui
+    // mesmo em vez de redirecionar — sem isso o usuário via um hop
+    // visível por /onboarding logo depois do cadastro/login.
+    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
+    ({ data: profile } = await profileQuery());
   }
 
-  const tenant = Array.isArray(profile.tenants)
-    ? profile.tenants[0]
-    : profile.tenants;
+  const tenantId = profile!.tenant_id as string;
+  const tenant = Array.isArray(profile!.tenants)
+    ? profile!.tenants[0]
+    : profile!.tenants;
 
   const { start, end } = todayRangeBR();
   const [{ count: todayCount }, { count: pendingCount }] = await Promise.all([
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
-      .eq("tenant_id", profile.tenant_id)
+      .eq("tenant_id", tenantId)
       .neq("status", "cancelled")
       .gte("starts_at", start)
       .lte("starts_at", end),
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
-      .eq("tenant_id", profile.tenant_id)
+      .eq("tenant_id", tenantId)
       .eq("status", "pending")
       .gte("starts_at", start)
       .lte("starts_at", end),
@@ -74,7 +84,7 @@ export default async function DashboardPage() {
             <div>
               <h1 className="heading text-2xl">{tenant?.name}</h1>
               <p className="text-sm text-muted">
-                {profile.full_name} · {profile.role}
+                {profile!.full_name} · {profile!.role}
               </p>
             </div>
           </div>
