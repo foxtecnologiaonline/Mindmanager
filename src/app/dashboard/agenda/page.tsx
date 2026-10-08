@@ -14,6 +14,7 @@ import {
 import {
   addDays,
   addMonths,
+  BRAZIL_UTC_OFFSET,
   dateOfISOBR,
   formatDate,
   monthGridStart,
@@ -228,13 +229,6 @@ export default async function AgendaPage({
   // em vez de redirecionar — nunca sai desta página.
   const tenantId = profile?.tenant_id ?? (await ensureTenantId(supabase, user.id, profile?.full_name ?? null));
 
-  const { data: professionals } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("tenant_id", tenantId)
-    .in("role", ["admin", "profissional"])
-    .order("full_name");
-
   if (view === "month") {
     const gridStart = monthGridStart(date);
     const gridDates = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
@@ -245,8 +239,8 @@ export default async function AgendaPage({
       .from("appointments")
       .select("id, starts_at, status")
       .eq("tenant_id", tenantId)
-      .gte("starts_at", `${gridStart}T00:00:00-03:00`)
-      .lt("starts_at", `${gridEnd}T00:00:00-03:00`);
+      .gte("starts_at", `${gridStart}T00:00:00${BRAZIL_UTC_OFFSET}`)
+      .lt("starts_at", `${gridEnd}T00:00:00${BRAZIL_UTC_OFFSET}`);
 
     const countsByDate = new Map<string, Record<string, number>>();
     for (const appt of monthAppointments ?? []) {
@@ -256,7 +250,7 @@ export default async function AgendaPage({
       countsByDate.set(d, counts);
     }
 
-    const monthLabel = new Date(`${date}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+    const monthLabel = new Date(`${date}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
       month: "long",
       year: "numeric",
     });
@@ -334,8 +328,8 @@ export default async function AgendaPage({
       .from("appointments")
       .select("id, patient_name, starts_at, status")
       .eq("tenant_id", tenantId)
-      .gte("starts_at", `${weekStart}T00:00:00-03:00`)
-      .lt("starts_at", `${weekEnd}T00:00:00-03:00`)
+      .gte("starts_at", `${weekStart}T00:00:00${BRAZIL_UTC_OFFSET}`)
+      .lt("starts_at", `${weekEnd}T00:00:00${BRAZIL_UTC_OFFSET}`)
       .order("starts_at");
 
     const byDate = new Map<string, typeof weekAppointments>();
@@ -357,12 +351,12 @@ export default async function AgendaPage({
               &larr; semana anterior
             </Link>
             <p className="text-center font-medium text-ink">
-              {new Date(`${weekStart}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+              {new Date(`${weekStart}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
                 day: "2-digit",
                 month: "short",
               })}{" "}
               –{" "}
-              {new Date(`${addDays(weekStart, 6)}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+              {new Date(`${addDays(weekStart, 6)}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
                 day: "2-digit",
                 month: "short",
               })}
@@ -382,7 +376,7 @@ export default async function AgendaPage({
                     href={`/dashboard/agenda?view=day&date=${d}`}
                     className="block rounded-md px-1 py-1 text-center text-xs font-medium text-ink link-accent"
                   >
-                    {new Date(`${d}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+                    {new Date(`${d}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
                       weekday: "short",
                     })}{" "}
                     {Number(d.slice(8, 10))}
@@ -417,7 +411,15 @@ export default async function AgendaPage({
   }
 
   // view === "day"
-  const dayOfWeek = new Date(`${date}T00:00:00-03:00`).getUTCDay();
+  const dayOfWeek = new Date(`${date}T00:00:00${BRAZIL_UTC_OFFSET}`).getUTCDay();
+
+  const { data: professionals } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("tenant_id", tenantId)
+    .in("role", ["admin", "profissional"])
+    .order("full_name");
+
   const professionalIds = (professionals ?? []).map((p) => p.id);
 
   const [{ data: serviceTypes }, { data: appointments }, { data: workingHours }] =
@@ -434,8 +436,8 @@ export default async function AgendaPage({
           "id, professional_id, patient_name, patient_phone, starts_at, ends_at, status, service_types ( name )",
         )
         .eq("tenant_id", tenantId)
-        .gte("starts_at", `${date}T00:00:00-03:00`)
-        .lt("starts_at", `${addDays(date, 1)}T00:00:00-03:00`)
+        .gte("starts_at", `${date}T00:00:00${BRAZIL_UTC_OFFSET}`)
+        .lt("starts_at", `${addDays(date, 1)}T00:00:00${BRAZIL_UTC_OFFSET}`)
         .order("starts_at"),
       professionalIds.length > 0
         ? supabase
@@ -506,7 +508,7 @@ export default async function AgendaPage({
           </Link>
         </div>
         <p className="text-center text-sm font-medium text-ink">
-          {new Date(`${date}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+          {new Date(`${date}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
             weekday: "long",
             day: "2-digit",
             month: "long",
