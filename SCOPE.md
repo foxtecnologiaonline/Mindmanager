@@ -74,11 +74,19 @@ confirmação.
 
 ### F2 — Paciente + Prontuário
 ~~Cadastro de paciente~~ **cadastro básico implementado em 2026-10-08**
-(`/dashboard/pacientes` — nome, telefone, e-mail, observações; ainda
-não ligado aos agendamentos, é um cadastro avulso). Falta: evolução
-clínica (SOAP), anexos, assinatura digital do registro (CFM Resolução
-1.821/2007), retenção de 20 anos desde o schema (mesmo sem UI de
-exclusão).
+(`/dashboard/pacientes` — nome, telefone, e-mail, observações). Falta:
+evolução clínica (SOAP), anexos, assinatura digital do registro (CFM
+Resolução 1.821/2007), retenção de 20 anos desde o schema (mesmo sem UI
+de exclusão).
+
+**Seleção de paciente cadastrado no agendamento manual** (`/dashboard/agenda`,
+2026-10-08): um `<select>` com os pacientes de `/dashboard/pacientes`
+preenche nome/telefone/e-mail do form ao escolher um — os campos
+continuam editáveis/digitáveis na mão pra quem ainda não tem cadastro.
+Ainda não há `patient_id` em `appointments` (segue avulso: a consulta
+grava uma cópia de nome/telefone/e-mail, sem FK pro cadastro) — ligar
+os dois de verdade (e dali abrir histórico de consultas por paciente)
+é um passo maior, deliberadamente não feito agora.
 
 ### F3 — Financeiro
 Pagamento (PIX/cartão) · contas a receber · recibo

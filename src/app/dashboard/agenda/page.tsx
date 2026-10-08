@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureTenantId } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
+import { PatientPicker } from "@/components/patient-picker";
 import {
   cancelAppointment,
   confirmAppointmentManually,
@@ -422,7 +423,7 @@ export default async function AgendaPage({
 
   const professionalIds = (professionals ?? []).map((p) => p.id);
 
-  const [{ data: serviceTypes }, { data: appointments }, { data: workingHours }] =
+  const [{ data: serviceTypes }, { data: appointments }, { data: workingHours }, { data: patients }] =
     await Promise.all([
       supabase
         .from("service_types")
@@ -446,6 +447,11 @@ export default async function AgendaPage({
             .in("professional_id", professionalIds)
             .eq("day_of_week", dayOfWeek)
         : Promise.resolve({ data: [] as { professional_id: string; start_time: string; end_time: string }[] }),
+      supabase
+        .from("patients")
+        .select("id, full_name, phone, email")
+        .eq("tenant_id", tenantId)
+        .order("full_name"),
     ]);
 
   // Faixa de horário da grade: cobre o expediente cadastrado e qualquer
@@ -685,23 +691,14 @@ export default async function AgendaPage({
                 <label className="font-medium text-ink">Horário</label>
                 <input type="time" name="time" required defaultValue={prefillTime} className="input" />
               </div>
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Nome do paciente</label>
-                <input name="patientName" required className="input" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Telefone</label>
-                <input
-                  name="patientPhone"
-                  required
-                  placeholder="55119..."
-                  className="input"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-ink">E-mail (opcional)</label>
-                <input name="patientEmail" type="email" className="input" />
-              </div>
+              <PatientPicker
+                patients={(patients ?? []).map((p) => ({
+                  id: p.id,
+                  fullName: p.full_name,
+                  phone: p.phone,
+                  email: p.email,
+                }))}
+              />
               <div className="space-y-1">
                 <label className="font-medium text-ink">Repetir</label>
                 <select name="recurrence" defaultValue="none" className="input">
