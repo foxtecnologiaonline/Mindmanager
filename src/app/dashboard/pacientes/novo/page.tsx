@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { createPatient } from "@/lib/patients/actions";
 
 export const metadata: Metadata = { title: "Novo paciente" };
 
-export default async function NewPatientPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+export default async function NewPatientPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,8 +18,6 @@ export default async function NewPatientPage({
   if (!user) {
     redirect("/login");
   }
-
-  const { error } = await searchParams;
 
   return (
     <main className="flex-1 p-6">
@@ -33,11 +29,9 @@ export default async function NewPatientPage({
           </Link>
         </div>
 
-        {error && (
-          <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <Suspense fallback={null}>
+          <Toast />
+        </Suspense>
 
         <form action={createPatient} className="card space-y-4 p-4">
           <div className="space-y-1">

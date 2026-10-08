@@ -54,12 +54,6 @@ export default async function DashboardPage() {
     ? profile!.tenants[0]
     : profile!.tenants;
 
-  const { data: professionals } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("tenant_id", tenantId);
-  const professionalIds = (professionals ?? []).map((p) => p.id);
-
   const { start, end } = todayRangeBR();
   const [
     { count: todayCount },
@@ -86,12 +80,13 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("active", true),
-    professionalIds.length > 0
-      ? supabase
-          .from("working_hours")
-          .select("id", { count: "exact", head: true })
-          .in("professional_id", professionalIds)
-      : Promise.resolve({ count: 0 }),
+    // Join direto em profiles em vez de buscar os IDs dos profissionais
+    // primeiro e filtrar working_hours com .in() — era uma ida a mais ao
+    // banco, sequencial, só pra montar essa lista.
+    supabase
+      .from("working_hours")
+      .select("id, profiles!inner(tenant_id)", { count: "exact", head: true })
+      .eq("profiles.tenant_id", tenantId),
   ]);
 
   const hasServiceType = (serviceTypeCount ?? 0) > 0;

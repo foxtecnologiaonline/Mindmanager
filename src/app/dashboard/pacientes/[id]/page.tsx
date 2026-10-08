@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { deletePatient, updatePatient } from "@/lib/patients/actions";
 
@@ -9,10 +11,8 @@ export const metadata: Metadata = { title: "Editar paciente" };
 
 export default async function EditPatientPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -24,7 +24,6 @@ export default async function EditPatientPage({
   }
 
   const { id } = await params;
-  const { error } = await searchParams;
 
   const { data: patient } = await supabase
     .from("patients")
@@ -46,11 +45,9 @@ export default async function EditPatientPage({
           </Link>
         </div>
 
-        {error && (
-          <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <Suspense fallback={null}>
+          <Toast />
+        </Suspense>
 
         <form action={updatePatient} className="card space-y-4 p-4">
           <input type="hidden" name="id" value={patient.id} />

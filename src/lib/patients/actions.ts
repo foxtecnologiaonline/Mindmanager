@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { ensureTenantId } from "@/lib/tenant";
+import { requireTenantId as resolveTenantId } from "@/lib/tenant";
 import { isValidBrazilPhone } from "@/lib/scheduling/validation";
 
 async function requireTenantId() {
@@ -16,13 +16,7 @@ async function requireTenantId() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("tenant_id, full_name")
-    .eq("id", user.id)
-    .single();
-
-  const tenantId = profile?.tenant_id ?? (await ensureTenantId(supabase, user.id, profile?.full_name ?? null));
+  const tenantId = await resolveTenantId(supabase, user.id);
 
   return { supabase, tenantId };
 }

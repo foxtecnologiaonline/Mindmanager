@@ -68,3 +68,20 @@ export async function ensureTenantId(
 
   return (tenant as { id: string }).id;
 }
+
+// Atalho para quem só precisa do tenant_id (sem outras colunas do
+// profile): faz a leitura e já aplica o fallback acima numa chamada só,
+// em vez de cada call site reimplementar "select tenant_id -> se faltar,
+// ensureTenantId" na mão.
+export async function requireTenantId(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id, full_name")
+    .eq("id", userId)
+    .single();
+
+  return profile?.tenant_id ?? (await ensureTenantId(supabase, userId, profile?.full_name ?? null));
+}

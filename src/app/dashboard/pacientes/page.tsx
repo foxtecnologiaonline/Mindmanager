@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ensureTenantId } from "@/lib/tenant";
+import { requireTenantId } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 
 export const metadata: Metadata = { title: "Pacientes" };
@@ -18,17 +18,7 @@ export default async function PatientsPage() {
     redirect("/login");
   }
 
-  const profileQuery = () =>
-    supabase.from("profiles").select("tenant_id, full_name").eq("id", user.id).single();
-
-  let { data: profile } = await profileQuery();
-
-  if (!profile?.tenant_id) {
-    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
-    ({ data: profile } = await profileQuery());
-  }
-
-  const tenantId = profile!.tenant_id as string;
+  const tenantId = await requireTenantId(supabase, user.id);
 
   const { data: patients } = await supabase
     .from("patients")
