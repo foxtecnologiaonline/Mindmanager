@@ -216,9 +216,14 @@ export default async function AgendaPage({
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="heading text-2xl">Agenda</h1>
-          <Link href="/dashboard/agenda/configuracoes" className="link-accent text-sm">
-            Configurar serviços e horários
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard/pacientes" className="link-accent text-sm">
+              Pacientes
+            </Link>
+            <Link href="/dashboard/agenda/configuracoes" className="link-accent text-sm">
+              Configurar serviços e horários
+            </Link>
+          </div>
         </div>
 
         <Suspense fallback={null}>

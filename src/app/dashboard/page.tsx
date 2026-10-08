@@ -232,6 +232,9 @@ export default async function DashboardPage() {
           <Link href="/dashboard/agenda" className="btn-primary">
             Ver agenda
           </Link>
+          <Link href="/dashboard/pacientes" className="btn-secondary">
+            Pacientes
+          </Link>
           {tenant?.slug && (
             <Link href={`/agendar/${tenant.slug}`} className="link-accent text-sm">
               Link público de agendamento

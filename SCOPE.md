@@ -36,10 +36,20 @@ Calendário por profissional · tipos/duração de consulta ·
 agendamento público via link · lembrete automático (WhatsApp/SMS)
 → maior valor percebido, mata no-show, gancho de venda
 
+**Configuração mínima desde 2026-10-08**: todo tenant novo já nasce com
+um tipo de consulta ("Consulta", 50min) e expediente padrão (seg-sex
+09:00-18:00) — editável/removível em
+`/dashboard/agenda/configuracoes`. Antes disso o admin precisava
+preencher os dois formulários antes do link público funcionar; agora
+funciona no primeiro login, sem nenhum passo obrigatório.
+
 ### F2 — Paciente + Prontuário
-Cadastro de paciente · evolução clínica (SOAP) · anexos ·
-assinatura digital do registro (CFM Resolução 1.821/2007) ·
-retenção de 20 anos desde o schema (mesmo sem UI de exclusão)
+~~Cadastro de paciente~~ **cadastro básico implementado em 2026-10-08**
+(`/dashboard/pacientes` — nome, telefone, e-mail, observações; ainda
+não ligado aos agendamentos, é um cadastro avulso). Falta: evolução
+clínica (SOAP), anexos, assinatura digital do registro (CFM Resolução
+1.821/2007), retenção de 20 anos desde o schema (mesmo sem UI de
+exclusão).
 
 ### F3 — Financeiro
 Pagamento (PIX/cartão) · contas a receber · recibo
@@ -53,6 +63,13 @@ Lembrete pós-consulta · NPS
   adicionar profissional/recepção ao mesmo tenant. Trava clínicas com
   mais de 1 profissional, mesmo a agenda já sendo multi-profissional
   por design. Decisão do usuário em 2026-10-02: fica para depois.
+- **Painel de chat de IA** (lado direito no desktop / embaixo no
+  mobile): proposto pelo usuário em 2026-10-08 (assistente pra equipe
+  e/ou paciente, dentro do dashboard e/ou da página pública de
+  agendamento). Decisão do usuário: "omitir por enquanto" — nem o
+  objetivo (equipe vs. paciente) nem o provedor de IA foram definidos.
+  Revisitar quando houver decisão sobre escopo e provedor (Claude/
+  Anthropic foi a sugestão, mas não confirmada).
 
 ## Não-negociáveis (todas as fases)
 - LGPD: dado de saúde é dado sensível → consentimento, criptografia, log de acesso
