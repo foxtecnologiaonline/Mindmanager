@@ -79,14 +79,18 @@ evolução clínica (SOAP), anexos, assinatura digital do registro (CFM
 Resolução 1.821/2007), retenção de 20 anos desde o schema (mesmo sem UI
 de exclusão).
 
-**Seleção de paciente cadastrado no agendamento manual** (`/dashboard/agenda`,
-2026-10-08): um `<select>` com os pacientes de `/dashboard/pacientes`
-preenche nome/telefone/e-mail do form ao escolher um — os campos
-continuam editáveis/digitáveis na mão pra quem ainda não tem cadastro.
-Ainda não há `patient_id` em `appointments` (segue avulso: a consulta
-grava uma cópia de nome/telefone/e-mail, sem FK pro cadastro) — ligar
-os dois de verdade (e dali abrir histórico de consultas por paciente)
-é um passo maior, deliberadamente não feito agora.
+**Agendamento ligado ao cadastro de paciente desde 2026-10-08**: um
+`<select>` com os pacientes de `/dashboard/pacientes` preenche
+nome/telefone/e-mail do form de agendamento manual ao escolher um — os
+campos continuam editáveis pra quem ainda não tem cadastro. Por baixo,
+`appointments.patient_id` (migration 0011) é resolvido dentro da mesma
+RPC `book_appointment` usada por todo agendamento (manual ou link
+público): casa por telefone com um paciente já cadastrado no tenant
+(últimos 9 dígitos, tolera formatação diferente) ou cria o cadastro na
+hora se não achar nenhum — sem sobrescrever um cadastro já existente.
+Falta ainda: UI de histórico de consultas a partir do cadastro do
+paciente (o vínculo no banco já existe, só não tem tela pra navegar
+por ele).
 
 ### F3 — Financeiro
 Pagamento (PIX/cartão) · contas a receber · recibo
