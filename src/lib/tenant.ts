@@ -41,6 +41,19 @@ export async function ensureTenantId(
     .single();
 
   if (error) {
+    // Defesa extra: se outra chamada concorrente criou o tenant entre o
+    // select acima e este insert, a RPC recusa com "já pertence a uma
+    // clínica" — relê antes de desistir, em vez de derrubar a página.
+    const { data: retried } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .single();
+
+    if (retried?.tenant_id) {
+      return retried.tenant_id as string;
+    }
+
     throw new Error(error.message);
   }
 
