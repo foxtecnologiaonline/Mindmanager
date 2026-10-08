@@ -1,5 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// Normaliza um nome em slug ascii-kebab (ex: "Clínica São José" ->
+// "clinica-sao-jose"). Compartilhado entre o fallback aqui e
+// /onboarding (mesmo cálculo que antes vivia duplicado nos dois
+// lugares).
+export function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") || "clinica"
+  );
+}
+
 // Garante que o usuário logado tem um tenant, provisionando um padrão
 // na hora se faltar — nunca navega pra outra página pra fazer isso.
 // Antes disso existia um redirect("/onboarding") em cada ponto que lia
@@ -25,13 +40,7 @@ export async function ensureTenantId(
   }
 
   const name = fullName?.trim() || "Minha Clínica";
-  const slug =
-    name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") || "clinica";
+  const slug = slugify(name);
 
   const { data: tenant, error } = await supabase
     .rpc("create_tenant_for_current_user", {

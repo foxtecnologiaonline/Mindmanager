@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { slugify } from "@/lib/tenant";
 
 // Desde a migration 0007, o tenant nasce automaticamente no signup
 // (trigger handle_new_user) — não existe mais pergunta de "nome da
@@ -25,13 +26,7 @@ export default async function OnboardingPage() {
 
   if (!profile?.tenant_id) {
     const name = profile?.full_name?.trim() || "Minha Clínica";
-    const slug =
-      name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") || "clinica";
+    const slug = slugify(name);
 
     await supabase.rpc("create_tenant_for_current_user", {
       tenant_name: name,

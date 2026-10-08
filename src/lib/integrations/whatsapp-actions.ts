@@ -30,7 +30,11 @@ async function requireAdminProfile() {
     .eq("id", user.id)
     .single();
 
-  if (profile && profile.role !== "admin") {
+  // Falha fechada: se o profile não carregou por qualquer motivo (erro de
+  // rede, RLS, linha ausente), nega em vez de deixar passar — antes disso
+  // era `if (profile && profile.role !== "admin")`, que pulava a checagem
+  // inteira quando `profile` vinha null.
+  if (!profile || profile.role !== "admin") {
     throw new Error("Apenas administradores podem configurar o WhatsApp da clínica.");
   }
 

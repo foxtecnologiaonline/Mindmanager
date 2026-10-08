@@ -102,9 +102,14 @@ export async function deletePatient(formData: FormData) {
   const { supabase } = await requireTenantId();
   const id = String(formData.get("id"));
 
-  await supabase.from("patients").delete().eq("id", id);
+  const { error } = await supabase.from("patients").delete().eq("id", id);
 
   revalidatePath("/dashboard/pacientes");
+
+  if (error) {
+    redirect(`/dashboard/pacientes?error=${encodeURIComponent(error.message)}`);
+  }
+
   redirect(
     `/dashboard/pacientes?success=${encodeURIComponent("Paciente removido.")}`,
   );

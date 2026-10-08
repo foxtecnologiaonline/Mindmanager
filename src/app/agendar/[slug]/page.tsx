@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { BookingForm } from "./booking-form";
@@ -21,10 +22,13 @@ type BookingInfoRow = {
   price_cents: number | null;
 };
 
-// O fetch feito aqui e no page component abaixo é deduplicado pelo Next
-// (mesma RPC, mesmos parâmetros, mesmo ciclo de renderização) — não
-// bate duas vezes no Supabase por request.
-async function getBookingInfo(slug: string) {
+// generateMetadata e o page component abaixo precisam dos mesmos dados.
+// supabase.rpc() faz um POST, então a deduplicação automática de fetch do
+// Next (que só cobre GET) não entra em ação aqui — sem isso bateríamos no
+// Supabase duas vezes por request. `cache()` do React memoiza por
+// argumentos dentro do mesmo ciclo de renderização, cobrindo as duas
+// chamadas com uma RPC só.
+const getBookingInfo = cache(async (slug: string) => {
   const supabase = createPublicClient();
   const { data, error } = await supabase.rpc("get_booking_info", {
     p_tenant_slug: slug,
@@ -35,7 +39,7 @@ async function getBookingInfo(slug: string) {
   }
 
   return data as BookingInfoRow[];
-}
+});
 
 export async function generateMetadata({
   params,
