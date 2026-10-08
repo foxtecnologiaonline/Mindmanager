@@ -28,7 +28,11 @@ export async function signup(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    // Ecoa nome+e-mail (nunca a senha) pra não ter que redigitar tudo
+    // de novo só porque, por exemplo, a senha era curta demais.
+    redirect(
+      `/signup?error=${encodeURIComponent(error.message)}&fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(email)}`,
+    );
   }
 
   // Projetos Supabase com "confirmar e-mail" ativado não criam sessão aqui:
@@ -52,7 +56,11 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    // Ecoa o e-mail (nunca a senha) — errar a senha não deveria obrigar
+    // a redigitar o e-mail também.
+    redirect(
+      `/login?error=${encodeURIComponent(error.message)}&email=${encodeURIComponent(email)}`,
+    );
   }
 
   redirect("/dashboard");

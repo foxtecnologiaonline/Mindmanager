@@ -1,12 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { signup } from "@/lib/actions";
+import { SubmitButton } from "@/components/submit-button";
+
+export const metadata: Metadata = { title: "Criar conta" };
 
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; checkEmail?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    checkEmail?: string;
+    fullName?: string;
+    email?: string;
+  }>;
 }) {
-  const { error, checkEmail } = await searchParams;
+  const { error, checkEmail, fullName, email } = await searchParams;
 
   if (checkEmail) {
     return (
@@ -38,13 +47,26 @@ export default async function SignupPage({
           <label htmlFor="fullName" className="text-sm font-medium text-ink">
             Nome completo
           </label>
-          <input id="fullName" name="fullName" required className="input" />
+          <input
+            id="fullName"
+            name="fullName"
+            required
+            defaultValue={fullName}
+            className="input"
+          />
         </div>
         <div className="space-y-1">
           <label htmlFor="email" className="text-sm font-medium text-ink">
             E-mail
           </label>
-          <input id="email" name="email" type="email" required className="input" />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            defaultValue={email}
+            className="input"
+          />
         </div>
         <div className="space-y-1">
           <label htmlFor="password" className="text-sm font-medium text-ink">
@@ -59,9 +81,7 @@ export default async function SignupPage({
             className="input"
           />
         </div>
-        <button type="submit" className="btn-primary w-full">
-          Criar conta
-        </button>
+        <SubmitButton pendingText="Criando conta...">Criar conta</SubmitButton>
         <p className="text-sm text-muted">
           Já tem conta?{" "}
           <Link href="/login" className="link-accent">

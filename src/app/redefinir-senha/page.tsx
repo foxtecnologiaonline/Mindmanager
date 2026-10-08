@@ -1,4 +1,8 @@
+import type { Metadata } from "next";
 import { updatePassword } from "@/lib/actions";
+import { SubmitButton } from "@/components/submit-button";
+
+export const metadata: Metadata = { title: "Definir nova senha" };
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -27,9 +31,7 @@ export default async function ResetPasswordPage({
             className="input"
           />
         </div>
-        <button type="submit" className="btn-primary w-full">
-          Salvar nova senha
-        </button>
+        <SubmitButton pendingText="Salvando...">Salvar nova senha</SubmitButton>
       </form>
     </main>
   );

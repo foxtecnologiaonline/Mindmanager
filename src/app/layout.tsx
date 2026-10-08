@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Fraunces, Work_Sans } from "next/font/google";
 import "./globals.css";
 
+// Só 500/600 — nenhuma página usa font-bold (700); evita baixar um
+// arquivo de fonte inteiro sem necessidade.
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600"],
 });
 
 const workSans = Work_Sans({
@@ -15,8 +17,16 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "MindManager",
+  // Páginas definem só o próprio `title` (ex: "Entrar") e o Next monta
+  // "Entrar · MindManager" — antes toda página aparecia como só
+  // "MindManager" na aba/histórico, sem distinção.
+  title: { default: "MindManager", template: "%s · MindManager" },
   description: "Gestão para profissionais de saúde",
+  openGraph: {
+    siteName: "MindManager",
+    locale: "pt_BR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

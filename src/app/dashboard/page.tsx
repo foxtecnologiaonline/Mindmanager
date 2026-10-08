@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/actions";
 import { ensureTenantId } from "@/lib/tenant";
+
+export const metadata: Metadata = { title: "Dashboard" };
 
 function todayRangeBR() {
   // Simplificação MVP: mesmo offset fixo usado no resto do produto
@@ -50,8 +54,19 @@ export default async function DashboardPage() {
     ? profile!.tenants[0]
     : profile!.tenants;
 
+  const { data: professionals } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("tenant_id", tenantId);
+  const professionalIds = (professionals ?? []).map((p) => p.id);
+
   const { start, end } = todayRangeBR();
-  const [{ count: todayCount }, { count: pendingCount }] = await Promise.all([
+  const [
+    { count: todayCount },
+    { count: pendingCount },
+    { count: serviceTypeCount },
+    { count: workingHourCount },
+  ] = await Promise.all([
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
@@ -66,7 +81,22 @@ export default async function DashboardPage() {
       .eq("status", "pending")
       .gte("starts_at", start)
       .lte("starts_at", end),
+    supabase
+      .from("service_types")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("active", true),
+    professionalIds.length > 0
+      ? supabase
+          .from("working_hours")
+          .select("id", { count: "exact", head: true })
+          .in("professional_id", professionalIds)
+      : Promise.resolve({ count: 0 }),
   ]);
+
+  const hasServiceType = (serviceTypeCount ?? 0) > 0;
+  const hasWorkingHour = (workingHourCount ?? 0) > 0;
+  const setupDone = hasServiceType && hasWorkingHour;
 
   return (
     <main className="flex-1 p-6">
@@ -74,11 +104,12 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {tenant?.logo_url && (
-              // eslint-disable-next-line @next/next/no-img-element -- logo de tenant arbitrário, sem domínio fixo pra configurar no next.config
-              <img
+              <Image
                 src={tenant.logo_url}
                 alt={`Logo de ${tenant.name}`}
-                className="h-10 w-10 rounded-lg border border-border object-contain"
+                width={40}
+                height={40}
+                className="rounded-lg border border-border object-contain"
               />
             )}
             <div>
@@ -94,6 +125,87 @@ export default async function DashboardPage() {
             </button>
           </form>
         </div>
+
+        {!setupDone && (
+          <div className="card space-y-3 p-4 text-sm">
+            <h2 className="font-medium text-ink">Primeiros passos</h2>
+            <ul className="space-y-2">
+              <li className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
+                    hasServiceType
+                      ? "bg-accent text-white"
+                      : "border border-dashed border-border text-muted-soft"
+                  }`}
+                >
+                  {hasServiceType ? "✓" : "1"}
+                </span>
+                {hasServiceType ? (
+                  <span className="text-muted-soft line-through">
+                    Cadastrar um tipo de consulta
+                  </span>
+                ) : (
+                  <Link
+                    href="/dashboard/agenda/configuracoes"
+                    className="link-accent"
+                  >
+                    Cadastrar um tipo de consulta
+                  </Link>
+                )}
+              </li>
+              <li className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
+                    hasWorkingHour
+                      ? "bg-accent text-white"
+                      : "border border-dashed border-border text-muted-soft"
+                  }`}
+                >
+                  {hasWorkingHour ? "✓" : "2"}
+                </span>
+                {hasWorkingHour ? (
+                  <span className="text-muted-soft line-through">
+                    Configurar seu horário de trabalho
+                  </span>
+                ) : (
+                  <Link
+                    href="/dashboard/agenda/configuracoes"
+                    className="link-accent"
+                  >
+                    Configurar seu horário de trabalho
+                  </Link>
+                )}
+              </li>
+              <li className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-[11px] text-muted-soft"
+                >
+                  3
+                </span>
+                {tenant?.slug ? (
+                  <span>
+                    Compartilhar o{" "}
+                    <Link
+                      href={`/agendar/${tenant.slug}`}
+                      className="link-accent"
+                    >
+                      link de agendamento
+                    </Link>{" "}
+                    com os pacientes
+                  </span>
+                ) : (
+                  <span className="text-muted-soft">
+                    Compartilhar o link de agendamento com os pacientes
+                  </span>
+                )}
+              </li>
+            </ul>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <Link href="/dashboard/agenda" className="card p-4 hover:bg-accent-soft">
             <p className="text-2xl font-semibold text-ink">{todayCount ?? 0}</p>

@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { requestPasswordReset } from "@/lib/actions";
+import { SubmitButton } from "@/components/submit-button";
+
+export const metadata: Metadata = { title: "Esqueci minha senha" };
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -41,9 +45,7 @@ export default async function ForgotPasswordPage({
           </label>
           <input id="email" name="email" type="email" required className="input" />
         </div>
-        <button type="submit" className="btn-primary w-full">
-          Enviar link
-        </button>
+        <SubmitButton pendingText="Enviando...">Enviar link</SubmitButton>
         <p className="text-sm text-muted">
           <Link href="/login" className="link-accent">
             Voltar para o login

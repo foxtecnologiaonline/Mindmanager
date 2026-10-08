@@ -1,14 +1,18 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ensureTenantId } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
+import { SubmitButton } from "@/components/submit-button";
 import {
   cancelAppointment,
   confirmAppointmentManually,
   createManualAppointment,
 } from "@/lib/scheduling/actions";
+
+export const metadata: Metadata = { title: "Agenda" };
 
 function formatDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -358,23 +362,23 @@ export default async function AgendaPage({
                           {appt.status === "pending" && (
                             <form action={confirmAppointmentManually}>
                               <input type="hidden" name="id" value={appt.id} />
-                              <button
-                                type="submit"
+                              <SubmitButton
+                                pendingText="..."
                                 className="font-medium text-accent hover:text-accent-dark"
                               >
                                 confirmar
-                              </button>
+                              </SubmitButton>
                             </form>
                           )}
                           {(appt.status === "pending" || appt.status === "confirmed") && (
                             <form action={cancelAppointment}>
                               <input type="hidden" name="id" value={appt.id} />
-                              <button
-                                type="submit"
+                              <SubmitButton
+                                pendingText="..."
                                 className="font-medium text-red-600 hover:text-red-700"
                               >
                                 cancelar
-                              </button>
+                              </SubmitButton>
                             </form>
                           )}
                         </div>
@@ -437,9 +441,9 @@ export default async function AgendaPage({
                 <input name="patientEmail" type="email" className="input" />
               </div>
             </div>
-            <button type="submit" className="btn-primary">
+            <SubmitButton pendingText="Agendando..." className="btn-primary">
               Agendar
-            </button>
+            </SubmitButton>
           </form>
         </details>
 

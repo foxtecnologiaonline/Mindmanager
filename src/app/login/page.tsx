@@ -1,12 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { login } from "@/lib/actions";
+import { SubmitButton } from "@/components/submit-button";
+
+export const metadata: Metadata = { title: "Entrar" };
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; email?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, email } = await searchParams;
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
@@ -21,7 +25,14 @@ export default async function LoginPage({
           <label htmlFor="email" className="text-sm font-medium text-ink">
             E-mail
           </label>
-          <input id="email" name="email" type="email" required className="input" />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            defaultValue={email}
+            className="input"
+          />
         </div>
         <div className="space-y-1">
           <label htmlFor="password" className="text-sm font-medium text-ink">
@@ -35,9 +46,7 @@ export default async function LoginPage({
             className="input"
           />
         </div>
-        <button type="submit" className="btn-primary w-full">
-          Entrar
-        </button>
+        <SubmitButton pendingText="Entrando...">Entrar</SubmitButton>
         <div className="flex items-center justify-between text-sm text-muted">
           <Link href="/signup" className="link-accent">
             Criar conta

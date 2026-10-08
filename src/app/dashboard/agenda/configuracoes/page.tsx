@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ensureTenantId } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
+import { SubmitButton } from "@/components/submit-button";
 import { WhatsappConnection } from "@/components/whatsapp-connection";
 import { uploadTenantLogo } from "@/lib/branding/actions";
 import {
@@ -12,6 +15,8 @@ import {
   deactivateServiceType,
   deleteWorkingHour,
 } from "@/lib/scheduling/actions";
+
+export const metadata: Metadata = { title: "Configurações da agenda" };
 
 const WEEKDAYS = [
   "Domingo",
@@ -94,11 +99,12 @@ export default async function AgendaConfigPage() {
           </p>
           <div className="flex items-center gap-4">
             {tenant?.logo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element -- logo de tenant arbitrário, sem domínio fixo pra configurar no next.config
-              <img
+              <Image
                 src={tenant.logo_url}
                 alt="Logo atual"
-                className="h-14 w-14 rounded-lg border border-border object-contain"
+                width={56}
+                height={56}
+                className="rounded-lg border border-border object-contain"
               />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-soft">
@@ -113,9 +119,12 @@ export default async function AgendaConfigPage() {
                 required
                 className="text-xs"
               />
-              <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
+              <SubmitButton
+                pendingText="Enviando..."
+                className="btn-secondary px-3 py-1.5 text-xs"
+              >
                 Enviar logo
-              </button>
+              </SubmitButton>
             </form>
           </div>
         </section>
@@ -148,9 +157,12 @@ export default async function AgendaConfigPage() {
                 </span>
                 <form action={deactivateServiceType}>
                   <input type="hidden" name="id" value={s.id} />
-                  <button type="submit" className="text-xs font-medium text-red-600 hover:text-red-700">
+                  <SubmitButton
+                    pendingText="..."
+                    className="text-xs font-medium text-red-600 hover:text-red-700"
+                  >
                     remover
-                  </button>
+                  </SubmitButton>
                 </form>
               </li>
             ))}
@@ -184,9 +196,9 @@ export default async function AgendaConfigPage() {
                 className="input w-28"
               />
             </div>
-            <button type="submit" className="btn-primary">
+            <SubmitButton pendingText="Adicionando..." className="btn-primary">
               Adicionar
-            </button>
+            </SubmitButton>
           </form>
         </section>
 
@@ -207,9 +219,12 @@ export default async function AgendaConfigPage() {
                   </span>
                   <form action={deleteWorkingHour}>
                     <input type="hidden" name="id" value={w.id} />
-                    <button type="submit" className="text-xs font-medium text-red-600 hover:text-red-700">
+                    <SubmitButton
+                      pendingText="..."
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
                       remover
-                    </button>
+                    </SubmitButton>
                   </form>
                 </li>
               );
@@ -247,9 +262,9 @@ export default async function AgendaConfigPage() {
               <label className="font-medium text-ink">Fim</label>
               <input name="endTime" type="time" required className="input" />
             </div>
-            <button type="submit" className="btn-primary">
+            <SubmitButton pendingText="Adicionando..." className="btn-primary">
               Adicionar
-            </button>
+            </SubmitButton>
           </form>
         </section>
       </div>
