@@ -11,18 +11,16 @@ import {
   confirmAppointmentManually,
   createManualAppointment,
 } from "@/lib/scheduling/actions";
+import {
+  addDays,
+  addMonths,
+  dateOfISOBR,
+  formatDate,
+  monthGridStart,
+  startOfWeekMonday,
+} from "@/lib/scheduling/dates";
 
 export const metadata: Metadata = { title: "Agenda" };
-
-function formatDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(dateStr: string, days: number) {
-  const d = new Date(`${dateStr}T00:00:00-03:00`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return formatDate(d);
-}
 
 // Instanciado uma vez: criar um Intl.DateTimeFormat por chamada pesa
 // quando a grade tem muitos agendamentos (cada bloco chama isso 2x).
@@ -41,6 +39,10 @@ function minutesOfDayBR(iso: string) {
 function minutesFromTimeString(t: string) {
   const [h, m] = t.split(":");
   return Number(h) * 60 + Number(m);
+}
+
+function timeStringFromMinutes(m: number) {
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
 // Agrupa agendamentos que se sobrepõem em "clusters" e distribui cada um
@@ -95,6 +97,7 @@ function layoutOverlapLanes(items: { id: string; startMin: number; endMin: numbe
 const PX_PER_MIN = 1.4;
 const DEFAULT_START_MIN = 7 * 60;
 const DEFAULT_END_MIN = 20 * 60;
+const SLOT_MINUTES = 30;
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pendente",
@@ -104,25 +107,106 @@ const STATUS_LABEL: Record<string, string> = {
   no_show: "Faltou",
 };
 
-// Borda sólida/tracejada varia junto com a cor — não é só a cor que
-// diferencia pendente/confirmado de cancelado/concluído (acessibilidade
-// para quem não distingue bem as cores do âmbar/teal).
+// Azul = o paciente respondeu "1" (confirmou) no WhatsApp; vermelho = o
+// paciente respondeu "2" (cancelou) ou a equipe cancelou manualmente;
+// amarelo = ainda sem resposta. Concluído/faltou não tem relação com a
+// confirmação, por isso ficam neutros (cinza).
 const STATUS_CLASS: Record<string, string> = {
   pending: "border-2 border-amber-300 bg-amber-50 text-amber-900",
-  confirmed: "border-2 border-accent bg-accent-soft text-ink",
-  cancelled: "border-2 border-dashed border-border bg-paper text-muted-soft line-through opacity-70",
+  confirmed: "border-2 border-blue-400 bg-blue-50 text-blue-900",
+  cancelled: "border-2 border-red-300 bg-red-50 text-red-800 line-through opacity-80",
   completed: "border-2 border-dashed border-border bg-paper text-muted-soft",
   no_show: "border-2 border-dashed border-border bg-paper text-muted-soft",
 };
 
+const STATUS_DOT_BG: Record<string, string> = {
+  pending: "bg-amber-400",
+  confirmed: "bg-blue-500",
+  cancelled: "bg-red-500",
+  completed: "bg-border",
+  no_show: "bg-border",
+};
+
+type View = "day" | "week" | "month";
+
+function resolveView(value: string | undefined): View {
+  return value === "week" || value === "month" ? value : "day";
+}
+
+function ViewTabs({ view, date }: { view: View; date: string }) {
+  const tabs: { key: View; label: string }[] = [
+    { key: "day", label: "Diário" },
+    { key: "week", label: "Semanal" },
+    { key: "month", label: "Mensal" },
+  ];
+
+  return (
+    <div className="inline-flex gap-1 rounded-lg border border-border bg-paper p-1 text-sm">
+      {tabs.map((tab) => (
+        <Link
+          key={tab.key}
+          href={`/dashboard/agenda?view=${tab.key}&date=${date}`}
+          className={`rounded-md px-3 py-1.5 font-medium ${
+            view === tab.key ? "bg-accent text-white" : "text-muted hover:text-ink"
+          }`}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function StatusLegend() {
+  return (
+    <div className="flex flex-wrap gap-3 text-xs text-muted">
+      <LegendDot colorClass="border-amber-300 bg-amber-50" label="Pendente — sem resposta" />
+      <LegendDot colorClass="border-blue-400 bg-blue-50" label="Confirmado — paciente disse sim" />
+      <LegendDot colorClass="border-red-300 bg-red-50" label="Cancelado — paciente disse não" />
+      <LegendDot colorClass="border-dashed border-border bg-paper" label="Concluído/faltou" />
+    </div>
+  );
+}
+
+function LegendDot({ colorClass, label }: { colorClass: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full border-2 ${colorClass}`} />
+      {label}
+    </span>
+  );
+}
+
+function AgendaHeader({ view, date }: { view: View; date: string }) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="heading text-2xl">Agenda</h1>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/pacientes" className="link-accent text-sm">
+            Pacientes
+          </Link>
+          <Link href="/dashboard/agenda/configuracoes" className="link-accent text-sm">
+            Configurar serviços e horários
+          </Link>
+        </div>
+      </div>
+      <ViewTabs view={view} date={date} />
+      <Suspense fallback={null}>
+        <Toast />
+      </Suspense>
+    </>
+  );
+}
+
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; error?: string }>;
+  searchParams: Promise<{ date?: string; view?: string; error?: string; profId?: string; time?: string }>;
 }) {
-  const { date: dateParam } = await searchParams;
+  const { date: dateParam, view: viewParam, profId, time: prefillTime } = await searchParams;
+  const view = resolveView(viewParam);
   const date = dateParam ?? formatDate(new Date());
-  const dayOfWeek = new Date(`${date}T00:00:00-03:00`).getUTCDay();
 
   const supabase = await createClient();
   const {
@@ -151,6 +235,189 @@ export default async function AgendaPage({
     .in("role", ["admin", "profissional"])
     .order("full_name");
 
+  if (view === "month") {
+    const gridStart = monthGridStart(date);
+    const gridDates = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+    const gridEnd = addDays(gridStart, 42);
+    const currentMonthPrefix = date.slice(0, 7);
+
+    const { data: monthAppointments } = await supabase
+      .from("appointments")
+      .select("id, starts_at, status")
+      .eq("tenant_id", tenantId)
+      .gte("starts_at", `${gridStart}T00:00:00-03:00`)
+      .lt("starts_at", `${gridEnd}T00:00:00-03:00`);
+
+    const countsByDate = new Map<string, Record<string, number>>();
+    for (const appt of monthAppointments ?? []) {
+      const d = dateOfISOBR(appt.starts_at);
+      const counts = countsByDate.get(d) ?? {};
+      counts[appt.status] = (counts[appt.status] ?? 0) + 1;
+      countsByDate.set(d, counts);
+    }
+
+    const monthLabel = new Date(`${date}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+    });
+
+    return (
+      <main className="flex-1 p-6">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <AgendaHeader view={view} date={date} />
+
+          <div className="flex items-center justify-between text-sm">
+            <Link href={`/dashboard/agenda?view=month&date=${addMonths(date, -1)}`} className="link-accent">
+              &larr; mês anterior
+            </Link>
+            <p className="text-center font-medium text-ink capitalize">{monthLabel}</p>
+            <Link href={`/dashboard/agenda?view=month&date=${addMonths(date, 1)}`} className="link-accent">
+              próximo mês &rarr;
+            </Link>
+          </div>
+
+          <StatusLegend />
+
+          <div className="card overflow-x-auto p-4">
+            <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-medium text-muted-soft">
+              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((w) => (
+                <div key={w}>{w}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {gridDates.map((d) => {
+                const inMonth = d.slice(0, 7) === currentMonthPrefix;
+                const counts = countsByDate.get(d) ?? {};
+                const statusEntries = Object.entries(counts);
+                const total = statusEntries.reduce((sum, [, n]) => sum + n, 0);
+                const dots = statusEntries.flatMap(([status, n]) =>
+                  Array.from({ length: n }, () => status),
+                );
+
+                return (
+                  <Link
+                    key={d}
+                    href={`/dashboard/agenda?view=day&date=${d}`}
+                    className={`flex min-h-[64px] flex-col gap-1 rounded-md border border-border p-1.5 text-left text-[11px] hover:bg-accent-soft ${
+                      inMonth ? "bg-paper" : "bg-transparent text-muted-soft opacity-50"
+                    }`}
+                  >
+                    <span className="font-medium">{Number(d.slice(8, 10))}</span>
+                    {total > 0 && (
+                      <div className="flex flex-wrap items-center gap-0.5">
+                        {dots.slice(0, 4).map((status, i) => (
+                          <span
+                            key={i}
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_BG[status]}`}
+                          />
+                        ))}
+                        {total > 4 && <span className="text-[9px] text-muted-soft">+{total - 4}</span>}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (view === "week") {
+    const weekStart = startOfWeekMonday(date);
+    const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    const weekEnd = addDays(weekStart, 7);
+
+    const { data: weekAppointments } = await supabase
+      .from("appointments")
+      .select("id, patient_name, starts_at, status")
+      .eq("tenant_id", tenantId)
+      .gte("starts_at", `${weekStart}T00:00:00-03:00`)
+      .lt("starts_at", `${weekEnd}T00:00:00-03:00`)
+      .order("starts_at");
+
+    const byDate = new Map<string, typeof weekAppointments>();
+    for (const d of weekDates) byDate.set(d, []);
+    for (const appt of weekAppointments ?? []) {
+      const d = dateOfISOBR(appt.starts_at);
+      const list = byDate.get(d) ?? [];
+      list.push(appt);
+      byDate.set(d, list);
+    }
+
+    return (
+      <main className="flex-1 p-6">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <AgendaHeader view={view} date={date} />
+
+          <div className="flex items-center justify-between text-sm">
+            <Link href={`/dashboard/agenda?view=week&date=${addDays(date, -7)}`} className="link-accent">
+              &larr; semana anterior
+            </Link>
+            <p className="text-center font-medium text-ink">
+              {new Date(`${weekStart}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "short",
+              })}{" "}
+              –{" "}
+              {new Date(`${addDays(weekStart, 6)}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "short",
+              })}
+            </p>
+            <Link href={`/dashboard/agenda?view=week&date=${addDays(date, 7)}`} className="link-accent">
+              próxima semana &rarr;
+            </Link>
+          </div>
+
+          <StatusLegend />
+
+          <div className="card overflow-x-auto p-4">
+            <div className="grid grid-cols-7 gap-2" style={{ minWidth: 980 }}>
+              {weekDates.map((d) => (
+                <div key={d} className="space-y-2">
+                  <Link
+                    href={`/dashboard/agenda?view=day&date=${d}`}
+                    className="block rounded-md px-1 py-1 text-center text-xs font-medium text-ink link-accent"
+                  >
+                    {new Date(`${d}T00:00:00-03:00`).toLocaleDateString("pt-BR", {
+                      weekday: "short",
+                    })}{" "}
+                    {Number(d.slice(8, 10))}
+                  </Link>
+                  <div className="space-y-1">
+                    {(byDate.get(d) ?? []).map((appt) => (
+                      <Link
+                        key={appt.id}
+                        href={`/dashboard/agenda?view=day&date=${d}`}
+                        className={`flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] leading-tight ${STATUS_CLASS[appt.status]}`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_BG[appt.status]}`}
+                        />
+                        <span className="truncate">
+                          {timeStringFromMinutes(minutesOfDayBR(appt.starts_at))} {appt.patient_name}
+                        </span>
+                      </Link>
+                    ))}
+                    {(byDate.get(d) ?? []).length === 0 && (
+                      <p className="px-1 text-[11px] text-muted-soft">—</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // view === "day"
+  const dayOfWeek = new Date(`${date}T00:00:00-03:00`).getUTCDay();
   const professionalIds = (professionals ?? []).map((p) => p.id);
 
   const [{ data: serviceTypes }, { data: appointments }, { data: workingHours }] =
@@ -203,6 +470,9 @@ export default async function AgendaPage({
   const hourMarks: number[] = [];
   for (let m = gridStartMin; m <= gridEndMin; m += 60) hourMarks.push(m);
 
+  const slotMarks: number[] = [];
+  for (let m = gridStartMin; m < gridEndMin; m += SLOT_MINUTES) slotMarks.push(m);
+
   const byProfessional = new Map<string, typeof appointments>();
   for (const p of professionals ?? []) byProfessional.set(p.id, []);
   for (const appt of appointments ?? []) {
@@ -214,21 +484,7 @@ export default async function AgendaPage({
   return (
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="heading text-2xl">Agenda</h1>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/pacientes" className="link-accent text-sm">
-              Pacientes
-            </Link>
-            <Link href="/dashboard/agenda/configuracoes" className="link-accent text-sm">
-              Configurar serviços e horários
-            </Link>
-          </div>
-        </div>
-
-        <Suspense fallback={null}>
-          <Toast />
-        </Suspense>
+        <AgendaHeader view={view} date={date} />
 
         <div className="flex items-center justify-between text-sm">
           <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="link-accent">
@@ -257,34 +513,16 @@ export default async function AgendaPage({
           })}
         </p>
 
-        <div className="flex gap-3 text-xs text-muted">
-          <span className="inline-flex items-center gap-1">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 rounded-full border-2 border-amber-300 bg-amber-50"
-            />
-            Pendente
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 rounded-full border-2 border-accent bg-accent-soft"
-            />
-            Confirmado
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-border bg-paper"
-            />
-            Cancelado/concluído
-          </span>
-        </div>
+        <StatusLegend />
 
         {(professionals ?? []).length === 0 ? (
           <p className="text-sm text-muted-soft">Nenhum profissional cadastrado.</p>
         ) : (
           <div className="card overflow-x-auto p-4">
+            <p className="pb-2 text-[11px] text-muted-soft">
+              Clique num horário livre da grade pra agendar direto nele, ou use o formulário
+              manual abaixo.
+            </p>
             <div
               className="grid"
               style={{
@@ -305,8 +543,7 @@ export default async function AgendaPage({
                     className="absolute right-2 -translate-y-1/2 text-[11px] text-muted-soft"
                     style={{ top: (m - gridStartMin) * PX_PER_MIN }}
                   >
-                    {String(Math.floor(m / 60)).padStart(2, "0")}:
-                    {String(m % 60).padStart(2, "0")}
+                    {timeStringFromMinutes(m)}
                   </div>
                 ))}
               </div>
@@ -323,6 +560,16 @@ export default async function AgendaPage({
                       "px)",
                   }}
                 >
+                  {slotMarks.map((m) => (
+                    <Link
+                      key={m}
+                      href={`/dashboard/agenda?date=${date}&profId=${prof.id}&time=${timeStringFromMinutes(m)}#agendar-form`}
+                      aria-label={`Agendar ${timeStringFromMinutes(m)} com ${prof.full_name}`}
+                      className="absolute inset-x-0 block hover:bg-accent-soft/50"
+                      style={{ top: (m - gridStartMin) * PX_PER_MIN, height: SLOT_MINUTES * PX_PER_MIN }}
+                    />
+                  ))}
+
                   {(() => {
                     const dayAppts = byProfessional.get(prof.id) ?? [];
                     const lanes = layoutOverlapLanes(
@@ -356,8 +603,7 @@ export default async function AgendaPage({
                           }}
                         >
                         <div className="font-semibold">
-                          {String(Math.floor(startMin / 60)).padStart(2, "0")}:
-                          {String(startMin % 60).padStart(2, "0")} · {appt.patient_name}
+                          {timeStringFromMinutes(startMin)} · {appt.patient_name}
                         </div>
                         <div className="truncate">
                           {service?.name} · {appt.patient_phone}
@@ -397,7 +643,16 @@ export default async function AgendaPage({
           </div>
         )}
 
-        <details className="card p-4">
+        {/* key força remount quando profId/time mudam — sem isso, numa
+        navegação client-side (clicar num slot vindo de outro slot já
+        clicado), o React reaproveita o <details> existente e não
+        reaplica o atributo `open`. */}
+        <details
+          key={`agendar-${profId ?? ""}-${prefillTime ?? ""}`}
+          id="agendar-form"
+          className="card p-4"
+          open={profId || prefillTime ? true : undefined}
+        >
           <summary className="cursor-pointer text-sm font-medium text-ink">
             Agendar manualmente
           </summary>
@@ -406,7 +661,7 @@ export default async function AgendaPage({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="font-medium text-ink">Profissional</label>
-                <select name="professionalId" required className="input">
+                <select name="professionalId" required defaultValue={profId} className="input">
                   {(professionals ?? []).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.full_name}
@@ -426,7 +681,7 @@ export default async function AgendaPage({
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-ink">Horário</label>
-                <input type="time" name="time" required className="input" />
+                <input type="time" name="time" required defaultValue={prefillTime} className="input" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-ink">Nome do paciente</label>
@@ -445,7 +700,32 @@ export default async function AgendaPage({
                 <label className="font-medium text-ink">E-mail (opcional)</label>
                 <input name="patientEmail" type="email" className="input" />
               </div>
+              <div className="space-y-1">
+                <label className="font-medium text-ink">Repetir</label>
+                <select name="recurrence" defaultValue="none" className="input">
+                  <option value="none">Não repetir</option>
+                  <option value="weekly">Semanalmente</option>
+                  <option value="biweekly">Quinzenalmente</option>
+                  <option value="monthly">Mensalmente</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-ink">Quantas vezes</label>
+                <input
+                  type="number"
+                  name="occurrences"
+                  min={1}
+                  max={12}
+                  defaultValue={1}
+                  className="input"
+                />
+              </div>
             </div>
+            <p className="text-[11px] text-muted-soft">
+              Em caso de recorrência, cada data vira uma consulta independente (cada uma recebe
+              sua própria pergunta de confirmação por WhatsApp) — se uma data colidir com outro
+              horário, as demais continuam sendo agendadas normalmente.
+            </p>
             <SubmitButton pendingText="Agendando..." className="btn-primary">
               Agendar
             </SubmitButton>

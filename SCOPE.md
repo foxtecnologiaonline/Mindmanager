@@ -43,6 +43,35 @@ um tipo de consulta ("Consulta", 50min) e expediente padrão (seg-sex
 preencher os dois formulários antes do link público funcionar; agora
 funciona no primeiro login, sem nenhum passo obrigatório.
 
+**Visões diário/semanal/mensal desde 2026-10-08** (`?view=day|week|month`
+em `/dashboard/agenda`, data compartilhada entre as abas): diário é a
+grade por profissional já existente; semanal e mensal são resumo
+somente-leitura (lista por dia / grade de pontos coloridos por status)
+que leva de volta ao diário ao clicar — é lá que ficam as ações
+(confirmar, cancelar, agendar).
+
+**Marcação direta na grade** (view diário): clicar num horário livre da
+coluna de um profissional abre o formulário "Agendar manualmente" já
+preenchido com profissional + horário — alternativa ao preenchimento
+manual completo, não substitui (a grade não valida contra o expediente
+cadastrado, igual o formulário manual já não validava — só a página
+pública de agendamento respeita `working_hours`).
+
+**Recorrência** (semanal/quinzenal/mensal, até 12 ocorrências por
+série): cada ocorrência é um agendamento independente, criado via a
+mesma RPC `book_appointment` de sempre (overlap, serviço ativo etc.) e
+com sua própria pergunta de confirmação por WhatsApp — se uma data
+colidir, as outras da série continuam sendo criadas. Simplificação
+deliberada: as ocorrências não ficam ligadas entre si no banco (não há
+"cancelar a série toda" ainda); cancelar/confirmar é sempre por
+ocorrência, na view diário.
+
+**Cores de status desde 2026-10-08** (grade, legenda, semanal e
+mensal): azul = paciente respondeu "1" (confirmou) no WhatsApp,
+vermelho = paciente respondeu "2" ou a equipe cancelou, amarelo = ainda
+sem resposta. Concluído/faltou seguem neutros (cinza), sem relação com
+confirmação.
+
 ### F2 — Paciente + Prontuário
 ~~Cadastro de paciente~~ **cadastro básico implementado em 2026-10-08**
 (`/dashboard/pacientes` — nome, telefone, e-mail, observações; ainda

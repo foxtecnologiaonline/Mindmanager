@@ -9,11 +9,7 @@ import { buildConfirmationQuestion } from "@/lib/notifications/messages";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
 import { ensureTenantId } from "@/lib/tenant";
-
-// Deslocamento fixo usado para combinar data+hora vindos de formulários da
-// equipe com o timezone assumido pelas funções SQL (America/Sao_Paulo, sem
-// horário de verão desde 2019). Simplificação MVP: produto Brasil-only.
-const BRAZIL_UTC_OFFSET = "-03:00";
+import { BRAZIL_UTC_OFFSET, buildRecurrenceDates, type Recurrence } from "@/lib/scheduling/dates";
 
 async function requireProfile() {
   const supabase = await createClient();
@@ -142,6 +138,11 @@ export async function createManualAppointment(formData: FormData) {
   const patientName = String(formData.get("patientName") ?? "").trim();
   const patientPhone = String(formData.get("patientPhone") ?? "").trim();
   const patientEmail = String(formData.get("patientEmail") ?? "").trim();
+  const recurrence = String(formData.get("recurrence") ?? "none") as Recurrence;
+  // Teto de 12 ocorrências: evita que um clique perdido no formulário
+  // crie meses de agendamentos de uma vez (cada um dispara uma mensagem
+  // de WhatsApp — custo real, não só ruído na agenda).
+  const occurrences = Math.min(Math.max(Number(formData.get("occurrences")) || 1, 1), 12);
 
   if (!isValidBrazilPhone(patientPhone)) {
     redirect(
@@ -151,34 +152,62 @@ export async function createManualAppointment(formData: FormData) {
     );
   }
 
-  const startsAt = new Date(`${date}T${time}:00${BRAZIL_UTC_OFFSET}`);
+  const occurrenceDates = buildRecurrenceDates(date, recurrence, occurrences);
+  const senderOverride = await resolveWhatsappSender(profile.tenant_id);
 
-  const { data, error } = await supabase
-    .rpc("book_appointment", {
-      p_tenant_slug: tenantSlug,
-      p_professional_id: professionalId,
-      p_service_type_id: serviceTypeId,
-      p_patient_name: patientName,
-      p_patient_phone: patientPhone,
-      p_patient_email: patientEmail || null,
-      p_starts_at: startsAt.toISOString(),
-    })
-    .single();
+  let successCount = 0;
+  const conflicts: string[] = [];
 
-  if (error) {
-    redirect(`/dashboard/agenda?error=${encodeURIComponent(error.message)}&date=${date}`);
+  // Cada ocorrência passa pela mesma RPC de agendamento único (garante
+  // checagem de overlap/horário em cada uma) — a série não é uma
+  // transação só: se uma data colidir, as outras continuam sendo
+  // agendadas em vez de a série toda falhar por causa de uma data.
+  for (const occurrenceDate of occurrenceDates) {
+    const startsAt = new Date(`${occurrenceDate}T${time}:00${BRAZIL_UTC_OFFSET}`);
+
+    const { data, error } = await supabase
+      .rpc("book_appointment", {
+        p_tenant_slug: tenantSlug,
+        p_professional_id: professionalId,
+        p_service_type_id: serviceTypeId,
+        p_patient_name: patientName,
+        p_patient_phone: patientPhone,
+        p_patient_email: patientEmail || null,
+        p_starts_at: startsAt.toISOString(),
+      })
+      .single();
+
+    if (error) {
+      conflicts.push(`${occurrenceDate} (${error.message})`);
+      continue;
+    }
+
+    successCount++;
+    const appointment = data as { id: string };
+    await sendWhatsAppMessage(
+      patientPhone,
+      buildConfirmationQuestion(startsAt),
+      `confirm-question-${appointment.id}`,
+      senderOverride,
+    );
   }
 
-  const appointment = data as { id: string };
-  const senderOverride = await resolveWhatsappSender(profile.tenant_id);
-  await sendWhatsAppMessage(
-    patientPhone,
-    buildConfirmationQuestion(startsAt),
-    `confirm-question-${appointment.id}`,
-    senderOverride,
-  );
-
   revalidatePath("/dashboard/agenda");
+
+  if (successCount === 0) {
+    redirect(
+      `/dashboard/agenda?error=${encodeURIComponent(conflicts[0] ?? "Não foi possível agendar.")}&date=${date}`,
+    );
+  }
+
+  const summary =
+    conflicts.length === 0
+      ? successCount > 1
+        ? `${successCount} consultas agendadas.`
+        : "Consulta agendada."
+      : `${successCount} de ${occurrenceDates.length} consultas agendadas. Conflito em: ${conflicts.join(", ")}.`;
+
+  redirect(`/dashboard/agenda?success=${encodeURIComponent(summary)}&date=${date}`);
 }
 
 export async function cancelAppointment(formData: FormData) {
