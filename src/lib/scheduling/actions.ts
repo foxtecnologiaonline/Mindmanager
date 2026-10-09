@@ -9,7 +9,15 @@ import { buildConfirmationQuestion } from "@/lib/notifications/messages";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
 import { ensureTenantId } from "@/lib/tenant";
-import { BRAZIL_UTC_OFFSET, buildRecurrenceDates, type Recurrence } from "@/lib/scheduling/dates";
+import {
+  BRAZIL_UTC_OFFSET,
+  buildRecurrenceDates,
+  isValidDateStr,
+  type Recurrence,
+} from "@/lib/scheduling/dates";
+
+const RECURRENCES: Recurrence[] = ["none", "weekly", "biweekly", "monthly"];
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 async function requireProfile() {
   const supabase = await createClient();
@@ -133,16 +141,28 @@ export async function createManualAppointment(formData: FormData) {
 
   const professionalId = String(formData.get("professionalId"));
   const serviceTypeId = String(formData.get("serviceTypeId"));
-  const date = String(formData.get("date"));
-  const time = String(formData.get("time"));
+  const rawDate = String(formData.get("date") ?? "");
+  const time = String(formData.get("time") ?? "");
   const patientName = String(formData.get("patientName") ?? "").trim();
   const patientPhone = String(formData.get("patientPhone") ?? "").trim();
   const patientEmail = String(formData.get("patientEmail") ?? "").trim();
-  const recurrence = String(formData.get("recurrence") ?? "none") as Recurrence;
+  const recurrenceParam = String(formData.get("recurrence") ?? "none") as Recurrence;
+  const recurrence = RECURRENCES.includes(recurrenceParam) ? recurrenceParam : "none";
   // Teto de 12 ocorrências: evita que um clique perdido no formulário
   // crie meses de agendamentos de uma vez (cada um dispara uma mensagem
   // de WhatsApp — custo real, não só ruído na agenda).
   const occurrences = Math.min(Math.max(Number(formData.get("occurrences")) || 1, 1), 12);
+
+  if (!isValidDateStr(rawDate) || !TIME_RE.test(time)) {
+    redirect(`/dashboard/agenda?error=${encodeURIComponent("Data ou horário inválido.")}`);
+  }
+  const date = rawDate;
+
+  if (!patientName || patientName.length > 120 || patientEmail.length > 160) {
+    redirect(
+      `/dashboard/agenda?error=${encodeURIComponent("Informe o nome do paciente (até 120 caracteres).")}&date=${date}`,
+    );
+  }
 
   if (!isValidBrazilPhone(patientPhone)) {
     redirect(
@@ -224,13 +244,22 @@ export async function cancelAppointment(formData: FormData) {
     .eq("id", id)
     .single();
 
-  await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
+  const dateParam = isValidDateStr(date) ? `&date=${date}` : "";
+
+  if (!before || before.status === "cancelled") {
+    redirect(`/dashboard/agenda?success=${encodeURIComponent("Consulta já estava cancelada.")}${dateParam}`);
+  }
+
+  const { error } = await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
+  if (error) {
+    redirect(`/dashboard/agenda?error=${encodeURIComponent(error.message)}${dateParam}`);
+  }
 
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/financeiro");
 
-  const dateParam = date ? `&date=${date}` : "";
   redirect(
-    `/dashboard/agenda?success=${encodeURIComponent("Consulta cancelada.")}&undoApptId=${id}&undoStatus=${before?.status ?? "pending"}${dateParam}`,
+    `/dashboard/agenda?success=${encodeURIComponent("Consulta cancelada.")}&undoApptId=${id}&undoStatus=${before.status}${dateParam}`,
   );
 }
 
@@ -243,13 +272,16 @@ export async function restoreAppointmentStatus(formData: FormData) {
   const status = String(formData.get("status") ?? "");
   const date = String(formData.get("date") ?? "");
 
+  // Só reabre o que está cancelado — nunca sobrescreve uma consulta que
+  // já voltou a outro estado (ex: concluída) por um link de "desfazer" velho.
   if (status === "pending" || status === "confirmed") {
-    await supabase.from("appointments").update({ status }).eq("id", id);
+    await supabase.from("appointments").update({ status }).eq("id", id).eq("status", "cancelled");
   }
 
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/financeiro");
 
-  const dateParam = date ? `&date=${date}` : "";
+  const dateParam = isValidDateStr(date) ? `&date=${date}` : "";
   redirect(`/dashboard/agenda?success=${encodeURIComponent("Cancelamento desfeito.")}${dateParam}`);
 }
 
@@ -260,7 +292,11 @@ export async function confirmAppointmentManually(formData: FormData) {
   const { supabase } = await requireProfile();
   const id = String(formData.get("id"));
 
-  await supabase.from("appointments").update({ status: "confirmed" }).eq("id", id);
+  await supabase
+    .from("appointments")
+    .update({ status: "confirmed" })
+    .eq("id", id)
+    .eq("status", "pending");
 
   revalidatePath("/dashboard/agenda");
 }
@@ -276,6 +312,10 @@ export async function getAvailableSlots(
   const allowed = await checkRateLimit(`slots:${ip}`, 30, 60);
   if (!allowed) {
     return { slots: [] as string[], error: "Muitas tentativas. Aguarde um minuto." };
+  }
+
+  if (!isValidDateStr(day)) {
+    return { slots: [] as string[], error: "Data inválida." };
   }
 
   const supabase = await createClient();
@@ -308,6 +348,13 @@ export async function bookPublicAppointment(input: {
   const allowed = await checkRateLimit(`book:${ip}`, 5, 60);
   if (!allowed) {
     return { success: false as const, error: "Muitas tentativas. Aguarde um minuto e tente de novo." };
+  }
+
+  if (!isValidBrazilPhone(input.patientPhone ?? "")) {
+    return { success: false as const, error: "Telefone inválido. Informe DDD + número." };
+  }
+  if (!input.patientName?.trim() || input.patientName.length > 120 || (input.patientEmail ?? "").length > 160) {
+    return { success: false as const, error: "Confira nome e e-mail informados." };
   }
 
   const supabase = await createClient();

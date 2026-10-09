@@ -6,6 +6,12 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // ex: "whatsapp:+14155238886"
 
+// Telefones BR chegam como DDD+número (10–11 dígitos); a API exige DDI.
+function toInternationalDigits(raw: string) {
+  const digits = raw.replace(/\D/g, "");
+  return (digits.length === 10 || digits.length === 11) ? `55${digits}` : digits;
+}
+
 export type WhatsAppSenderOverride = { apiKey: string; numberId: string };
 
 /**
@@ -47,7 +53,7 @@ async function sendViaZapScript(
   idempotencyKey?: string,
   override?: WhatsAppSenderOverride,
 ) {
-  const digits = to.replace(/\D/g, "");
+  const digits = toInternationalDigits(to);
   const apiKey = override?.apiKey ?? ZAPSCRIPT_API_KEY!;
   const numberId = override?.numberId ?? ZAPSCRIPT_NUMBER_ID;
 
@@ -85,7 +91,7 @@ async function sendViaZapScript(
 }
 
 async function sendViaTwilio(to: string, body: string) {
-  const digits = to.replace(/\D/g, "");
+  const digits = toInternationalDigits(to);
   const toAddress = `whatsapp:+${digits}`;
 
   try {

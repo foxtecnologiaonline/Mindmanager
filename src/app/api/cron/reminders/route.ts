@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
@@ -15,11 +16,15 @@ import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
  * appointments de todos os tenants, contornando a RLS por tenant que
  * existe para o acesso de usuários finais.
  */
-export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
+function isAuthorized(authHeader: string | null, secret: string | undefined): boolean {
+  if (!secret || !authHeader) return false;
+  const a = Buffer.from(authHeader);
+  const b = Buffer.from(`Bearer ${secret}`);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+export async function GET(request: NextRequest) {
+  if (!isAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -33,7 +38,10 @@ export async function GET(request: NextRequest) {
     serviceRoleKey,
   );
 
-  const windowStart = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
+  // O cron roda 1x/dia (vercel.json); a janela precisa cobrir 24h inteiras,
+  // senão consultas fora de uma faixa de 2h nunca recebem lembrete.
+  // reminder_sent_at evita envio duplicado entre execuções.
+  const windowStart = new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString();
   const windowEnd = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString();
 
   const { data: appointments, error } = await supabase

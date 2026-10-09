@@ -18,7 +18,8 @@ import {
   addMonths,
   BRAZIL_UTC_OFFSET,
   dateOfISOBR,
-  formatDate,
+  isValidDateStr,
+  todayBR,
   monthGridStart,
   startOfWeekMonday,
 } from "@/lib/scheduling/dates";
@@ -259,7 +260,7 @@ export default async function AgendaPage({
     undoStatus,
   } = await searchParams;
   const view = resolveView(viewParam);
-  const date = dateParam ?? formatDate(new Date());
+  const date = isValidDateStr(dateParam) ? dateParam : todayBR();
 
   const { tenantId } = await getTenantContext();
   const supabase = await createClient();

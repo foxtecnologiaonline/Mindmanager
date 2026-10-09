@@ -5,6 +5,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 
+const METHODS = ["pix", "card", "cash", "other"] as const;
+const MAX_AMOUNT_CENTS = 100_000_000; // R$ 1.000.000,00 — acima disso é erro de digitação
+
+function parseMethod(value: FormDataEntryValue | null, fallback: (typeof METHODS)[number]) {
+  const v = String(value ?? "");
+  return (METHODS as readonly string[]).includes(v) ? v : fallback;
+}
+
 async function requireTenant() {
   const supabase = await createClient();
   const {
@@ -30,7 +38,7 @@ export async function createManualInvoice(formData: FormData) {
   const amountCents = Math.round(Number(amountReais) * 100);
   const notes = String(formData.get("notes") ?? "").trim();
 
-  if (!patientId || !Number.isFinite(amountCents) || amountCents <= 0) {
+  if (!patientId || !Number.isFinite(amountCents) || amountCents <= 0 || amountCents > MAX_AMOUNT_CENTS) {
     redirect(
       `/dashboard/financeiro?error=${encodeURIComponent("Selecione o paciente e um valor válido.")}`,
     );
@@ -57,17 +65,23 @@ export async function createManualInvoice(formData: FormData) {
 export async function markInvoicePaid(formData: FormData) {
   const { supabase } = await requireTenant();
   const id = String(formData.get("id"));
-  const method = String(formData.get("method") ?? "other");
+  const method = parseMethod(formData.get("method"), "other");
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("invoices")
     .update({ status: "paid", method, paid_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("id");
 
   revalidatePath("/dashboard/financeiro");
 
-  if (error) {
-    redirect(`/dashboard/financeiro?error=${encodeURIComponent(error.message)}`);
+  if (error || !updated?.length) {
+    redirect(
+      `/dashboard/financeiro?error=${encodeURIComponent(
+        error?.message ?? "Essa cobrança não está mais pendente.",
+      )}`,
+    );
   }
 
   redirect(
@@ -79,7 +93,11 @@ export async function undoInvoicePayment(formData: FormData) {
   const { supabase } = await requireTenant();
   const id = String(formData.get("id"));
 
-  await supabase.from("invoices").update({ status: "pending", method: null, paid_at: null }).eq("id", id);
+  await supabase
+    .from("invoices")
+    .update({ status: "pending", method: null, paid_at: null })
+    .eq("id", id)
+    .eq("status", "paid");
 
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?success=${encodeURIComponent("Pagamento desfeito.")}`);
@@ -89,7 +107,9 @@ export async function cancelInvoice(formData: FormData) {
   const { supabase } = await requireTenant();
   const id = String(formData.get("id"));
 
-  await supabase.from("invoices").update({ status: "cancelled" }).eq("id", id);
+  // Só cancela o que ainda está pendente — cobrança paga precisa
+  // primeiro ter o pagamento desfeito (evita sumir com dinheiro recebido).
+  await supabase.from("invoices").update({ status: "cancelled" }).eq("id", id).eq("status", "pending");
 
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?success=${encodeURIComponent("Cobrança cancelada.")}`);
@@ -105,16 +125,25 @@ export async function updatePixSettings(formData: FormData) {
   const pixHolderName = String(formData.get("pixHolderName") ?? "").trim();
   const pixCity = String(formData.get("pixCity") ?? "").trim();
 
-  if (!pixKey || !pixHolderName || !pixCity) {
+  if (!pixKey || !pixHolderName || !pixCity || pixKey.length > 77 || pixHolderName.length > 60 || pixCity.length > 40) {
     redirect(
       `/dashboard/financeiro?error=${encodeURIComponent("Preencha chave Pix, nome e cidade.")}`,
     );
   }
 
-  await supabase
+  const { data: saved, error: saveError } = await supabase
     .from("tenants")
     .update({ pix_key: pixKey, pix_holder_name: pixHolderName, pix_city: pixCity })
-    .eq("id", tenantId);
+    .eq("id", tenantId)
+    .select("id");
+
+  if (saveError || !saved?.length) {
+    redirect(
+      `/dashboard/financeiro?error=${encodeURIComponent(
+        saveError?.message ?? "Não foi possível salvar os dados do Pix.",
+      )}`,
+    );
+  }
 
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?success=${encodeURIComponent("Dados do Pix salvos.")}`);

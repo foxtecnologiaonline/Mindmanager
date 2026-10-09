@@ -7,7 +7,12 @@ import { ensureTenantId } from "@/lib/tenant";
 
 const LOGO_BUCKET = "tenant-logos";
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2MB
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+// SVG fora de propósito: pode carregar <script> e é servido do domínio do storage.
+const ALLOWED_TYPES: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
 
 export async function uploadTenantLogo(formData: FormData) {
   const supabase = await createClient();
@@ -38,10 +43,11 @@ export async function uploadTenantLogo(formData: FormData) {
     );
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  const ext = ALLOWED_TYPES[file.type];
+  if (!ext) {
     redirect(
       `/dashboard/agenda/configuracoes?error=${encodeURIComponent(
-        "Formato não suportado. Use PNG, JPG, WEBP ou SVG.",
+        "Formato não suportado. Use PNG, JPG ou WEBP.",
       )}`,
     );
   }
@@ -52,7 +58,6 @@ export async function uploadTenantLogo(formData: FormData) {
     );
   }
 
-  const ext = file.name.split(".").pop() ?? "png";
   // Pasta = tenant_id: é o que a policy de storage usa pra garantir que
   // uma clínica só escreve dentro da própria pasta (ver migration 0005).
   const path = `${tenantId}/logo-${Date.now()}.${ext}`;
@@ -69,14 +74,17 @@ export async function uploadTenantLogo(formData: FormData) {
 
   const { data: publicUrlData } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("tenants")
     .update({ logo_url: publicUrlData.publicUrl })
-    .eq("id", tenantId);
+    .eq("id", tenantId)
+    .select("id");
 
-  if (updateError) {
+  if (updateError || !updated?.length) {
     redirect(
-      `/dashboard/agenda/configuracoes?error=${encodeURIComponent(updateError.message)}`,
+      `/dashboard/agenda/configuracoes?error=${encodeURIComponent(
+        updateError?.message ?? "Não foi possível salvar o logo.",
+      )}`,
     );
   }
 

@@ -31,9 +31,18 @@ export async function createPackage(formData: FormData) {
   const sessionsTotal = Number(formData.get("sessionsTotal"));
   const amountReais = String(formData.get("amount") ?? "").replace(",", ".");
   const amountCents = Math.round(Number(amountReais) * 100);
-  const method = String(formData.get("method") ?? "pix");
+  const methodParam = String(formData.get("method") ?? "pix");
+  const method = ["pix", "card", "cash", "other"].includes(methodParam) ? methodParam : "pix";
 
-  if (!patientId || !Number.isFinite(sessionsTotal) || sessionsTotal <= 0 || !Number.isFinite(amountCents) || amountCents <= 0) {
+  if (
+    !patientId ||
+    !Number.isInteger(sessionsTotal) ||
+    sessionsTotal <= 0 ||
+    sessionsTotal > 200 ||
+    !Number.isFinite(amountCents) ||
+    amountCents <= 0 ||
+    amountCents > 100_000_000
+  ) {
     redirect(
       `/dashboard/financeiro/pacotes?error=${encodeURIComponent(
         "Selecione o paciente e preencha número de sessões e valor corretamente.",
@@ -57,7 +66,7 @@ export async function createPackage(formData: FormData) {
     redirect(`/dashboard/financeiro/pacotes?error=${encodeURIComponent(error.message)}`);
   }
 
-  await supabase.from("invoices").insert({
+  const { error: invoiceError } = await supabase.from("invoices").insert({
     tenant_id: tenantId,
     patient_id: patientId,
     package_id: pkg!.id,
@@ -67,6 +76,13 @@ export async function createPackage(formData: FormData) {
     paid_at: new Date().toISOString(),
     notes: `Pacote de ${sessionsTotal} sessões`,
   });
+
+  if (invoiceError) {
+    // Sem a cobrança paga o pacote ficaria sem recibo nem rastro de
+    // pagamento — desfaz o pacote em vez de deixar o registro pela metade.
+    await supabase.from("session_packages").delete().eq("id", pkg!.id);
+    redirect(`/dashboard/financeiro/pacotes?error=${encodeURIComponent(invoiceError.message)}`);
+  }
 
   revalidatePath("/dashboard/financeiro/pacotes");
   redirect(`/dashboard/financeiro/pacotes?success=${encodeURIComponent("Pacote registrado.")}`);
@@ -82,19 +98,22 @@ export async function registerPackageSession(formData: FormData) {
 
   const { data: pkg } = await supabase
     .from("session_packages")
-    .select("sessions_total, sessions_used")
+    .select("sessions_total, sessions_used, status")
     .eq("id", id)
     .single();
 
-  if (pkg && pkg.sessions_used < pkg.sessions_total) {
+  if (pkg && pkg.status === "active" && pkg.sessions_used < pkg.sessions_total) {
     const sessionsUsed = pkg.sessions_used + 1;
+    // .eq("sessions_used", ...) = concorrência otimista: dois cliques
+    // simultâneos não gravam o mesmo valor (um deles vira no-op).
     await supabase
       .from("session_packages")
       .update({
         sessions_used: sessionsUsed,
         status: sessionsUsed >= pkg.sessions_total ? "completed" : "active",
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("sessions_used", pkg.sessions_used);
   }
 
   revalidatePath("/dashboard/financeiro/pacotes");
@@ -107,15 +126,16 @@ export async function undoPackageSession(formData: FormData) {
 
   const { data: pkg } = await supabase
     .from("session_packages")
-    .select("sessions_used")
+    .select("sessions_used, status")
     .eq("id", id)
     .single();
 
-  if (pkg && pkg.sessions_used > 0) {
+  if (pkg && pkg.status !== "cancelled" && pkg.sessions_used > 0) {
     await supabase
       .from("session_packages")
       .update({ sessions_used: pkg.sessions_used - 1, status: "active" })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("sessions_used", pkg.sessions_used);
   }
 
   revalidatePath("/dashboard/financeiro/pacotes");

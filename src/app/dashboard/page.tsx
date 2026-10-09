@@ -77,12 +77,6 @@ export default async function DashboardPage() {
       href: "/dashboard/agenda/configuracoes",
     },
     { key: "patient", label: "Primeiro paciente", done: hasPatient, href: "/dashboard/pacientes/novo" },
-    {
-      key: "share",
-      label: "Compartilhar link",
-      done: false,
-      href: tenantSlug ? `/agendar/${tenantSlug}` : undefined,
-    },
   ];
   const completedSteps = steps.filter((s) => s.done).length;
   const setupDone = completedSteps === steps.length;

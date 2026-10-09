@@ -63,11 +63,12 @@ export async function handleZapscriptWebhook(
     return new NextResponse(null, { status: 401 });
   }
 
-  const payload = JSON.parse(rawBody) as {
-    event: string;
-    timestamp: string;
-    data: Record<string, unknown>;
-  };
+  let payload: { event: string; timestamp: string; data: Record<string, unknown> | null };
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return new NextResponse("payload inválido", { status: 400 });
+  }
 
   // O timestamp está dentro do corpo assinado, então é confiável pra
   // detectar replay de uma entrega antiga reenviada por terceiro.
@@ -88,8 +89,8 @@ export async function handleZapscriptWebhook(
 
   const supabase = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceRoleKey);
 
-  const contactPhone = String(payload.data.contactPhone ?? "");
-  const text = normalizeReply(String(payload.data.text ?? ""));
+  const contactPhone = String(payload.data?.contactPhone ?? "");
+  const text = normalizeReply(String(payload.data?.text ?? ""));
   const last9 = contactPhone.replace(/\D/g, "").slice(-9);
 
   if (!last9) {

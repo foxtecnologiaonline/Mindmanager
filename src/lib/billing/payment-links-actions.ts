@@ -76,15 +76,16 @@ export async function createPaymentLink(formData: FormData) {
 export async function confirmPaymentLinkReceived(formData: FormData) {
   const { supabase } = await requireTenant();
   const id = String(formData.get("id"));
-  const method = String(formData.get("method") ?? "pix");
+  const methodParam = String(formData.get("method") ?? "pix");
+  const method = ["pix", "card", "cash", "other"].includes(methodParam) ? methodParam : "pix";
 
   const { data: link } = await supabase
     .from("payment_links")
-    .select("invoice_ids")
+    .select("invoice_ids, status")
     .eq("id", id)
     .single();
 
-  if (link) {
+  if (link && link.status === "open") {
     // Só revalida invoices que ainda estão pendentes — uma cobrança do
     // link pode ter sido cancelada depois de criado (ex: consulta
     // desmarcada), e confirmar o link não deve reviver essa cobrança.
@@ -108,11 +109,11 @@ export async function undoPaymentLinkConfirmation(formData: FormData) {
 
   const { data: link } = await supabase
     .from("payment_links")
-    .select("invoice_ids")
+    .select("invoice_ids, status")
     .eq("id", id)
     .single();
 
-  if (link) {
+  if (link && link.status === "paid") {
     await supabase
       .from("invoices")
       .update({ status: "pending", method: null, paid_at: null })
@@ -129,7 +130,7 @@ export async function cancelPaymentLink(formData: FormData) {
   const { supabase } = await requireTenant();
   const id = String(formData.get("id"));
 
-  await supabase.from("payment_links").update({ status: "cancelled" }).eq("id", id);
+  await supabase.from("payment_links").update({ status: "cancelled" }).eq("id", id).eq("status", "open");
 
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?view=links&success=${encodeURIComponent("Link cancelado.")}`);

@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/agenda/configuracoes", label: "Configurações", icon: "settings" as const },
 ];
 
-type IconName = (typeof NAV_ITEMS)[number]["icon"];
+type IconName = (typeof NAV_ITEMS)[number]["icon"] | "logout";
 
 // Ícones inline (sem lib externa, consistente com o resto do projeto):
 // traço simples em currentColor, herdam a cor do item ativo/inativo.
@@ -31,6 +31,12 @@ function NavIcon({ name, className }: { name: IconName; className?: string }) {
   };
 
   switch (name) {
+    case "logout":
+      return (
+        <svg {...common}>
+          <path d="M8 3H4.5A1.5 1.5 0 0 0 3 4.5v11A1.5 1.5 0 0 0 4.5 17H8M13 6l4 4-4 4M17 10H8" />
+        </svg>
+      );
     case "home":
       return (
         <svg {...common}>
@@ -72,12 +78,25 @@ function NavIcon({ name, className }: { name: IconName; className?: string }) {
   }
 }
 
+// Longest-match: "/dashboard/agenda/configuracoes" não deve acender também
+// "Agenda" (prefixo dela), e "/dashboard" só vale na raiz.
+function isActive(pathname: string, href: string) {
+  if (href === "/dashboard") return pathname === "/dashboard";
+  const matchesThis = pathname === href || pathname.startsWith(`${href}/`);
+  if (!matchesThis) return false;
+  return !NAV_ITEMS.some(
+    (other) =>
+      other.href.length > href.length &&
+      other.href.startsWith(`${href}/`) &&
+      (pathname === other.href || pathname.startsWith(`${other.href}/`)),
+  );
+}
+
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <>
       {NAV_ITEMS.map((item) => {
-        const active =
-          item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+        const active = isActive(pathname, item.href);
         return (
           <Link
             key={item.href}
@@ -155,8 +174,7 @@ export function DashboardNav({
       {/* Mobile: tab bar fixa no rodapé */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface md:hidden">
         {NAV_ITEMS.map((item) => {
-          const active =
-            item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+          const active = isActive(pathname, item.href);
           return (
             <Link
               key={item.href}
@@ -171,6 +189,15 @@ export function DashboardNav({
             </Link>
           );
         })}
+        <form action={logout} className="flex flex-1">
+          <button
+            type="submit"
+            className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium text-muted-soft"
+          >
+            <NavIcon name="logout" className="h-5 w-5" />
+            Sair
+          </button>
+        </form>
       </nav>
     </>
   );

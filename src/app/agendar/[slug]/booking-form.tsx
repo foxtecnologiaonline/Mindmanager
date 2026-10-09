@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { bookPublicAppointment, getAvailableSlots } from "@/lib/scheduling/actions";
 import { isValidBrazilPhone } from "@/lib/scheduling/validation";
+import { todayBR } from "@/lib/scheduling/dates";
 
 type ServiceRow = {
   professionalId: string;
@@ -13,9 +14,7 @@ type ServiceRow = {
   priceCents: number | null;
 };
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
+const todayISO = todayBR;
 
 export function BookingForm({
   tenantSlug,
@@ -63,6 +62,9 @@ export function BookingForm({
     startTransition(async () => {
       const result = await getAvailableSlots(professionalId, serviceTypeId, date);
       setSlots(result.slots);
+      if (result.error) {
+        setMessage({ type: "error", text: result.error });
+      }
     });
   }
 

@@ -32,6 +32,30 @@ Revisão de layout/navegação/UX aplicada a todo `/dashboard`:
   cada página sob `/dashboard` chamam de novo sem repetir a ida ao
   banco.
 
+## Auditoria de segurança e robustez (2026-10-09)
+Revisão do código inteiro; correções em `0015_security_hardening.sql`
+(**precisa ser aplicada**) e no app:
+- **Grants por coluna** (0015): `REVOKE` de coluna não vale quando a
+  tabela já tem `GRANT` inteiro — os revokes de 0001/0006 não protegiam
+  `profiles.tenant_id/role` nem `tenants.whatsapp_api_key/webhook_secret`.
+  Agora: revoke na tabela + grant só das colunas usadas pelo app.
+- **FKs do mesmo tenant** (0015): triggers em appointments, invoices,
+  session_packages e payment_links; RLS só checava `tenant_id`.
+- **book_appointment** (0015): bypass de expediente só para equipe do
+  próprio tenant; limites de tamanho/horizonte; erro amigável em overlap.
+- **Cancelar consulta ↔ cobrança** (0015): cancelar cancela a cobrança
+  pendente; desfazer restaura.
+- App: redirect aberto em `/auth/confirm`, comparação do CRON_SECRET em
+  tempo constante, janela do cron (1 execução/dia agora cobre 24h),
+  logo sem SVG e extensão derivada do MIME, validação de datas e "hoje"
+  em America/Sao_Paulo, filtros de status nas ações financeiras
+  (pago não é cancelado/pago de novo), concorrência otimista nas sessões
+  do pacote, DDI 55 no WhatsApp, JSON inválido no webhook, cabeçalhos de
+  segurança (sem CSP), logout no mobile, Next 16.4.0 (advisories altos).
+- **Limite conhecido**: desfazer a confirmação de um link de pagamento
+  reabre todas as cobranças pagas do link, inclusive as que já estavam
+  pagas antes da confirmação (sem coluna que diga quem pagou o quê).
+
 ## Fora de escopo (cortado, não esquecido)
 - TISS / faturamento de convênio
 - Multi-unidade / múltiplas filiais

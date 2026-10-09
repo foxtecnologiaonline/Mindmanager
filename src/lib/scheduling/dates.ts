@@ -63,6 +63,19 @@ export function dateOfISOBR(iso: string) {
   return BR_DATE_FORMATTER.format(new Date(iso));
 }
 
+// "Hoje" no fuso do produto (formatDate(new Date()) devolveria a data em
+// UTC, que após 21h de Brasília já é o dia seguinte).
+export function todayBR() {
+  return BR_DATE_FORMATTER.format(new Date());
+}
+
+// Aceita só YYYY-MM-DD que seja uma data de calendário real.
+export function isValidDateStr(value: string | null | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
 export type Recurrence = "none" | "weekly" | "biweekly" | "monthly";
 
 // Gera as datas de uma série recorrente a partir de startDate (inclusive).
@@ -79,11 +92,12 @@ export function buildRecurrenceDates(
   const count = Math.max(1, occurrences);
   const dates = [startDate];
   for (let i = 1; i < count; i++) {
-    const previous = dates[i - 1];
+    // Mensal parte sempre da data inicial: encadear (31/jan -> 28/fev ->
+    // 28/mar) faria o dia "encolher" pra sempre depois de um mês curto.
     dates.push(
       recurrence === "monthly"
-        ? addMonths(previous, 1)
-        : addDays(previous, recurrence === "weekly" ? 7 : 14),
+        ? addMonths(startDate, i)
+        : addDays(startDate, i * (recurrence === "weekly" ? 7 : 14)),
     );
   }
   return dates;

@@ -88,7 +88,7 @@ export default async function AgendaConfigPage() {
               <input
                 type="file"
                 name="logo"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                accept="image/png,image/jpeg,image/webp"
                 required
                 className="text-xs"
               />
