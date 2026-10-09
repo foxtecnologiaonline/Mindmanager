@@ -135,7 +135,10 @@ processar pagamento de verdade dentro do sistema (gerar QR PIX
 automático, capturar cartão) — hoje o "Pagamento" do título desta fase
 continua sendo feito por fora (PIX ou maquininha da própria clínica); o
 sistema só registra. Requer escolher um gateway (Mercado Pago, Asaas,
-Stripe etc.), credenciais e webhook de confirmação.
+Stripe etc.), credenciais e webhook de confirmação. Decisão do usuário
+em 2026-10-09: nenhum gateway por agora — fica no registro manual até
+haver motivo de negócio pra processar pagamento de verdade dentro do
+sistema.
 
 ### F4 — Retenção
 Lembrete pós-consulta · NPS
