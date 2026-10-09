@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { logout } from "@/lib/actions";
-import { ensureTenantId } from "@/lib/tenant";
+import { getTenantContext } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -20,39 +19,8 @@ function todayRangeBR() {
 }
 
 export default async function DashboardPage() {
+  const { tenantId, tenantName, tenantSlug, logoUrl } = await getTenantContext();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const profileQuery = () =>
-    supabase
-      .from("profiles")
-      .select(
-        "full_name, role, tenant_id, tenants ( name, slug, billing_status, trial_ends_at, logo_url )",
-      )
-      .eq("id", user.id)
-      .single();
-
-  let { data: profile } = await profileQuery();
-
-  if (!profile?.tenant_id) {
-    // Rede de segurança: desde a migration 0007 isso não deveria faltar
-    // nunca (o tenant nasce no trigger de signup), mas resolve aqui
-    // mesmo em vez de redirecionar — sem isso o usuário via um hop
-    // visível por /onboarding logo depois do cadastro/login.
-    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
-    ({ data: profile } = await profileQuery());
-  }
-
-  const tenantId = profile!.tenant_id as string;
-  const tenant = Array.isArray(profile!.tenants)
-    ? profile!.tenants[0]
-    : profile!.tenants;
 
   const { start, end } = todayRangeBR();
   const [
@@ -60,6 +28,7 @@ export default async function DashboardPage() {
     { count: pendingCount },
     { count: serviceTypeCount },
     { count: workingHourCount },
+    { count: patientCount },
   ] = await Promise.all([
     supabase
       .from("appointments")
@@ -80,159 +49,137 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("active", true),
-    // Join direto em profiles em vez de buscar os IDs dos profissionais
-    // primeiro e filtrar working_hours com .in() — era uma ida a mais ao
-    // banco, sequencial, só pra montar essa lista.
     supabase
       .from("working_hours")
       .select("id, profiles!inner(tenant_id)", { count: "exact", head: true })
       .eq("profiles.tenant_id", tenantId),
+    supabase
+      .from("patients")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .is("deleted_at", null),
   ]);
 
   const hasServiceType = (serviceTypeCount ?? 0) > 0;
   const hasWorkingHour = (workingHourCount ?? 0) > 0;
-  const setupDone = hasServiceType && hasWorkingHour;
+  const hasPatient = (patientCount ?? 0) > 0;
+  const steps = [
+    {
+      key: "service",
+      label: "Tipo de consulta",
+      done: hasServiceType,
+      href: "/dashboard/agenda/configuracoes",
+    },
+    {
+      key: "hours",
+      label: "Horário de trabalho",
+      done: hasWorkingHour,
+      href: "/dashboard/agenda/configuracoes",
+    },
+    { key: "patient", label: "Primeiro paciente", done: hasPatient, href: "/dashboard/pacientes/novo" },
+    {
+      key: "share",
+      label: "Compartilhar link",
+      done: false,
+      href: tenantSlug ? `/agendar/${tenantSlug}` : undefined,
+    },
+  ];
+  const completedSteps = steps.filter((s) => s.done).length;
+  const setupDone = completedSteps === steps.length;
 
   return (
     <main className="flex-1 p-6">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {tenant?.logo_url && (
-              <Image
-                src={tenant.logo_url}
-                alt={`Logo de ${tenant.name}`}
-                width={40}
-                height={40}
-                className="rounded-lg border border-border object-contain"
-              />
-            )}
-            <div>
-              <h1 className="heading text-2xl">{tenant?.name}</h1>
-              <p className="text-sm text-muted">
-                {profile!.full_name} · {profile!.role}
-              </p>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div
+          className="flex flex-wrap items-center gap-4 rounded-2xl p-5"
+          style={{
+            background:
+              "linear-gradient(135deg, var(--color-accent-soft), var(--color-surface))",
+          }}
+        >
+          {logoUrl ? (
+            <Image
+              src={logoUrl}
+              alt={`Logo de ${tenantName ?? "clínica"}`}
+              width={48}
+              height={48}
+              className="rounded-xl border border-border bg-surface object-contain"
+            />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-lg font-semibold text-white">
+              {tenantName?.charAt(0)?.toUpperCase() ?? "M"}
+            </div>
+          )}
+          <div className="flex-1">
+            <h1 className="heading text-2xl">{tenantName}</h1>
+          </div>
+          <div className="flex gap-6">
+            <div className="text-center">
+              <p className="text-2xl font-semibold text-ink">{todayCount ?? 0}</p>
+              <p className="text-xs text-muted">consultas hoje</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-semibold text-ink">{pendingCount ?? 0}</p>
+              <p className="text-xs text-muted">pendentes</p>
             </div>
           </div>
-          <form action={logout}>
-            <button type="submit" className="link-accent text-sm">
-              Sair
-            </button>
-          </form>
         </div>
 
         {!setupDone && (
-          <div className="card space-y-3 p-4 text-sm">
-            <h2 className="font-medium text-ink">Primeiros passos</h2>
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                    hasServiceType
-                      ? "bg-accent text-white"
-                      : "border border-dashed border-border text-muted-soft"
-                  }`}
-                >
-                  {hasServiceType ? "✓" : "1"}
-                </span>
-                {hasServiceType ? (
-                  <span className="text-muted-soft line-through">
-                    Cadastrar um tipo de consulta
-                  </span>
-                ) : (
-                  <Link
-                    href="/dashboard/agenda/configuracoes"
-                    className="link-accent"
-                  >
-                    Cadastrar um tipo de consulta
-                  </Link>
-                )}
-              </li>
-              <li className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                    hasWorkingHour
-                      ? "bg-accent text-white"
-                      : "border border-dashed border-border text-muted-soft"
-                  }`}
-                >
-                  {hasWorkingHour ? "✓" : "2"}
-                </span>
-                {hasWorkingHour ? (
-                  <span className="text-muted-soft line-through">
-                    Configurar seu horário de trabalho
-                  </span>
-                ) : (
-                  <Link
-                    href="/dashboard/agenda/configuracoes"
-                    className="link-accent"
-                  >
-                    Configurar seu horário de trabalho
-                  </Link>
-                )}
-              </li>
-              <li className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-[11px] text-muted-soft"
-                >
-                  3
-                </span>
-                {tenant?.slug ? (
-                  <span>
-                    Compartilhar o{" "}
-                    <Link
-                      href={`/agendar/${tenant.slug}`}
-                      className="link-accent"
+          <div className="card space-y-4 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-medium text-ink">Primeiros passos</h2>
+              <span className="text-xs text-muted-soft">
+                {completedSteps}/{steps.length}
+              </span>
+            </div>
+            <div className="flex items-start">
+              {steps.map((step, i) => (
+                <Fragment key={step.key}>
+                  <div className="flex w-20 flex-col items-center gap-1.5 text-center sm:w-28">
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-transform ${
+                        step.done
+                          ? "animate-success-pulse scale-100 bg-accent text-white"
+                          : "border-2 border-dashed border-border text-muted-soft"
+                      }`}
                     >
-                      link de agendamento
-                    </Link>{" "}
-                    com os pacientes
-                  </span>
-                ) : (
-                  <span className="text-muted-soft">
-                    Compartilhar o link de agendamento com os pacientes
-                  </span>
-                )}
-              </li>
-            </ul>
+                      {step.done ? "✓" : i + 1}
+                    </span>
+                    {step.done ? (
+                      <span className="text-xs text-muted-soft">{step.label}</span>
+                    ) : step.href ? (
+                      <Link href={step.href} className="link-accent text-xs">
+                        {step.label}
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-soft">{step.label}</span>
+                    )}
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div
+                      className={`mt-4 h-0.5 flex-1 ${step.done ? "bg-accent" : "bg-border"}`}
+                    />
+                  )}
+                </Fragment>
+              ))}
+            </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Link href="/dashboard/agenda" className="card p-4 hover:bg-accent-soft">
-            <p className="text-2xl font-semibold text-ink">{todayCount ?? 0}</p>
-            <p className="text-sm text-muted">consultas hoje</p>
+            <p className="font-medium text-ink">Ver agenda</p>
+            <p className="text-sm text-muted-soft">Diário, semanal e mensal</p>
           </Link>
-          <Link href="/dashboard/agenda" className="card p-4 hover:bg-accent-soft">
-            <p className="text-2xl font-semibold text-ink">{pendingCount ?? 0}</p>
-            <p className="text-sm text-muted">pendentes de confirmação</p>
+          <Link href="/dashboard/pacientes" className="card p-4 hover:bg-accent-soft">
+            <p className="font-medium text-ink">Pacientes</p>
+            <p className="text-sm text-muted-soft">{patientCount ?? 0} cadastrado(s)</p>
           </Link>
-        </div>
-        <div className="card p-4 text-sm">
-          <p>
-            Plano: <strong>{tenant?.billing_status}</strong>
-          </p>
-          {tenant?.billing_status === "trial" && (
-            <p className="text-muted">
-              Trial até{" "}
-              {tenant?.trial_ends_at &&
-                new Date(tenant.trial_ends_at).toLocaleDateString("pt-BR")}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/agenda" className="btn-primary">
-            Ver agenda
-          </Link>
-          <Link href="/dashboard/pacientes" className="btn-secondary">
-            Pacientes
-          </Link>
-          {tenant?.slug && (
-            <Link href={`/agendar/${tenant.slug}`} className="link-accent text-sm">
-              Link público de agendamento
+          {tenantSlug && (
+            <Link href={`/agendar/${tenantSlug}`} className="card p-4 hover:bg-accent-soft">
+              <p className="font-medium text-ink">Link público</p>
+              <p className="truncate text-sm text-muted-soft">/agendar/{tenantSlug}</p>
             </Link>
           )}
         </div>

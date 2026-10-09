@@ -7,8 +7,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 // e mostra como toast flutuante com auto-dismiss, em vez do parágrafo
 // inline que ficava preso na página até a próxima navegação. Limpa o
 // parâmetro da URL ao fechar/expirar, sem recarregar a página.
-export function Toast({ paramNames = { error: "error", success: "success" } }: {
+export function Toast({
+  paramNames = { error: "error", success: "success" },
+  undo,
+}: {
   paramNames?: { error?: string; success?: string };
+  // Ação extra opcional no toast de sucesso ("Desfazer") — válida
+  // enquanto o toast estiver visível (mesma janela do auto-dismiss,
+  // sem precisar de um timer separado).
+  undo?: {
+    action: (formData: FormData) => void | Promise<void>;
+    fields: Record<string, string>;
+    label?: string;
+  };
 } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,13 +56,23 @@ export function Toast({ paramNames = { error: "error", success: "success" } }: {
   return (
     <div
       role="status"
-      className={`fixed bottom-4 left-1/2 z-50 flex max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border p-3 text-sm shadow-lg ${
+      className={`animate-toast-in fixed bottom-4 left-1/2 z-50 flex max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border p-3 text-sm shadow-lg ${
         type === "error"
           ? "border-red-200 bg-red-50 text-red-700"
           : "border-accent/30 bg-accent-soft text-ink"
       }`}
     >
       <span className="flex-1">{text}</span>
+      {type === "success" && undo && (
+        <form action={undo.action}>
+          {Object.entries(undo.fields).map(([key, value]) => (
+            <input key={key} type="hidden" name={key} value={value} />
+          ))}
+          <button type="submit" className="font-semibold text-accent-dark underline">
+            {undo.label ?? "Desfazer"}
+          </button>
+        </form>
+      )}
       <button
         type="button"
         onClick={dismiss}

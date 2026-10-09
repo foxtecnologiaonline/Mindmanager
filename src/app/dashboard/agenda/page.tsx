@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ensureTenantId } from "@/lib/tenant";
+import { getTenantContext } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PatientPicker } from "@/components/patient-picker";
 import {
   cancelAppointment,
   confirmAppointmentManually,
   createManualAppointment,
+  restoreAppointmentStatus,
 } from "@/lib/scheduling/actions";
 import {
   addDays,
@@ -109,6 +110,16 @@ const STATUS_LABEL: Record<string, string> = {
   no_show: "Faltou",
 };
 
+// Nunca só a cor diferencia o status (WCAG 1.4.1): cada um também tem um
+// glifo próprio, usado junto do texto/legenda.
+const STATUS_GLYPH: Record<string, string> = {
+  pending: "●",
+  confirmed: "✓",
+  cancelled: "✕",
+  completed: "✔",
+  no_show: "—",
+};
+
 // Azul = o paciente respondeu "1" (confirmou) no WhatsApp; vermelho = o
 // paciente respondeu "2" (cancelou) ou a equipe cancelou manualmente;
 // amarelo = ainda sem resposta. Concluído/faltou não tem relação com a
@@ -162,40 +173,63 @@ function ViewTabs({ view, date }: { view: View; date: string }) {
 function StatusLegend() {
   return (
     <div className="flex flex-wrap gap-3 text-xs text-muted">
-      <LegendDot colorClass="border-amber-300 bg-amber-50" label="Pendente — sem resposta" />
-      <LegendDot colorClass="border-blue-400 bg-blue-50" label="Confirmado — paciente disse sim" />
-      <LegendDot colorClass="border-red-300 bg-red-50" label="Cancelado — paciente disse não" />
-      <LegendDot colorClass="border-dashed border-border bg-paper" label="Concluído/faltou" />
+      <LegendDot status="pending" colorClass="border-amber-300 bg-amber-50" label="Pendente — sem resposta" />
+      <LegendDot status="confirmed" colorClass="border-blue-400 bg-blue-50" label="Confirmado — paciente disse sim" />
+      <LegendDot status="cancelled" colorClass="border-red-300 bg-red-50" label="Cancelado — paciente disse não" />
+      <LegendDot status="completed" colorClass="border-dashed border-border bg-paper" label="Concluído/faltou" />
     </div>
   );
 }
 
-function LegendDot({ colorClass, label }: { colorClass: string; label: string }) {
+function LegendDot({
+  status,
+  colorClass,
+  label,
+}: {
+  status: string;
+  colorClass: string;
+  label: string;
+}) {
   return (
     <span className="inline-flex items-center gap-1">
-      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full border-2 ${colorClass}`} />
+      <span
+        aria-hidden="true"
+        className={`flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 text-[8px] leading-none ${colorClass}`}
+      >
+        {STATUS_GLYPH[status]}
+      </span>
       {label}
     </span>
   );
 }
 
-function AgendaHeader({ view, date }: { view: View; date: string }) {
+function AgendaHeader({
+  view,
+  date,
+  undoAppointment,
+}: {
+  view: View;
+  date: string;
+  undoAppointment?: { id: string; status: string };
+}) {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="heading text-2xl">Agenda</h1>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/pacientes" className="link-accent text-sm">
-            Pacientes
-          </Link>
-          <Link href="/dashboard/agenda/configuracoes" className="link-accent text-sm">
-            Configurar serviços e horários
-          </Link>
-        </div>
+        <ViewTabs view={view} date={date} />
       </div>
-      <ViewTabs view={view} date={date} />
       <Suspense fallback={null}>
-        <Toast />
+        <Toast
+          undo={
+            undoAppointment
+              ? {
+                  action: restoreAppointmentStatus,
+                  fields: { id: undoAppointment.id, status: undoAppointment.status, date },
+                  label: "Desfazer",
+                }
+              : undefined
+          }
+        />
       </Suspense>
     </>
   );
@@ -204,31 +238,31 @@ function AgendaHeader({ view, date }: { view: View; date: string }) {
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; view?: string; error?: string; profId?: string; time?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    view?: string;
+    error?: string;
+    profId?: string;
+    time?: string;
+    patientId?: string;
+    undoApptId?: string;
+    undoStatus?: string;
+  }>;
 }) {
-  const { date: dateParam, view: viewParam, profId, time: prefillTime } = await searchParams;
+  const {
+    date: dateParam,
+    view: viewParam,
+    profId,
+    time: prefillTime,
+    patientId,
+    undoApptId,
+    undoStatus,
+  } = await searchParams;
   const view = resolveView(viewParam);
   const date = dateParam ?? formatDate(new Date());
 
+  const { tenantId } = await getTenantContext();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("tenant_id, full_name")
-    .eq("id", user.id)
-    .single();
-
-  // Rede de segurança: desde a migration 0007 isso não deveria faltar
-  // nunca (o tenant nasce no trigger de signup), mas resolve aqui mesmo
-  // em vez de redirecionar — nunca sai desta página.
-  const tenantId = profile?.tenant_id ?? (await ensureTenantId(supabase, user.id, profile?.full_name ?? null));
 
   if (view === "month") {
     const gridStart = monthGridStart(date);
@@ -389,10 +423,9 @@ export default async function AgendaPage({
                         href={`/dashboard/agenda?view=day&date=${d}`}
                         className={`flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] leading-tight ${STATUS_CLASS[appt.status]}`}
                       >
-                        <span
-                          aria-hidden="true"
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_BG[appt.status]}`}
-                        />
+                        <span aria-hidden="true" className="text-[9px] leading-none">
+                          {STATUS_GLYPH[appt.status]}
+                        </span>
                         <span className="truncate">
                           {timeStringFromMinutes(minutesOfDayBR(appt.starts_at))} {appt.patient_name}
                         </span>
@@ -434,7 +467,7 @@ export default async function AgendaPage({
       supabase
         .from("appointments")
         .select(
-          "id, professional_id, patient_name, patient_phone, starts_at, ends_at, status, service_types ( name )",
+          "id, professional_id, patient_id, patient_name, patient_phone, starts_at, ends_at, status, service_types ( name )",
         )
         .eq("tenant_id", tenantId)
         .gte("starts_at", `${date}T00:00:00${BRAZIL_UTC_OFFSET}`)
@@ -451,6 +484,7 @@ export default async function AgendaPage({
         .from("patients")
         .select("id, full_name, phone, email")
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .order("full_name"),
     ]);
 
@@ -489,257 +523,289 @@ export default async function AgendaPage({
     byProfessional.set(appt.professional_id, list);
   }
 
+  const patientOptions = (patients ?? []).map((p) => ({
+    id: p.id,
+    fullName: p.full_name,
+    phone: p.phone,
+    email: p.email,
+  }));
+
+  // Conteúdo do formulário de agendamento manual — usado tanto no painel
+  // fixo (telas largas) quanto no <details> recolhível (telas estreitas,
+  // sem espaço pra um painel lateral sempre visível). É um valor JSX, não
+  // um componente: usá-lo duas vezes só cria dois nós de árvore a partir
+  // da mesma descrição, cada um com sua própria instância do
+  // PatientPicker — não é "criar componente durante o render".
+  const bookingForm = (
+    <form action={createManualAppointment} className="space-y-3 text-sm">
+      <input type="hidden" name="date" value={date} />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="font-medium text-ink">Profissional</label>
+          <select name="professionalId" required defaultValue={profId} className="input">
+            {(professionals ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="font-medium text-ink">Serviço</label>
+          <select name="serviceTypeId" required className="input">
+            {(serviceTypes ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.duration_minutes}min)
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="font-medium text-ink">Horário</label>
+          <input type="time" name="time" required defaultValue={prefillTime} className="input" />
+        </div>
+        <PatientPicker patients={patientOptions} initialPatientId={patientId} />
+        <div className="space-y-1">
+          <label className="font-medium text-ink">Repetir</label>
+          <select name="recurrence" defaultValue="none" className="input">
+            <option value="none">Não repetir</option>
+            <option value="weekly">Semanalmente</option>
+            <option value="biweekly">Quinzenalmente</option>
+            <option value="monthly">Mensalmente</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="font-medium text-ink">Quantas vezes</label>
+          <input type="number" name="occurrences" min={1} max={12} defaultValue={1} className="input" />
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-soft">
+        Em caso de recorrência, cada data vira uma consulta independente (cada uma recebe sua
+        própria pergunta de confirmação por WhatsApp) — se uma data colidir com outro horário, as
+        demais continuam sendo agendadas normalmente.
+      </p>
+      <SubmitButton pendingText="Agendando..." className="btn-primary">
+        Agendar
+      </SubmitButton>
+    </form>
+  );
+
+  const hasPrefill = Boolean(profId || prefillTime || patientId);
+
   return (
     <main className="flex-1 p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <AgendaHeader view={view} date={date} />
+      <div className="mx-auto max-w-6xl space-y-6">
+        <AgendaHeader
+          view={view}
+          date={date}
+          undoAppointment={undoApptId ? { id: undoApptId, status: undoStatus ?? "pending" } : undefined}
+        />
 
-        <div className="flex items-center justify-between text-sm">
-          <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="link-accent">
-            &larr; dia anterior
-          </Link>
-          <form action="/dashboard/agenda" className="flex items-center gap-2">
-            <input
-              type="date"
-              name="date"
-              defaultValue={date}
-              className="input py-1 text-sm"
-            />
-            <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
-              Ir
-            </button>
-          </form>
-          <Link href={`/dashboard/agenda?date=${addDays(date, 1)}`} className="link-accent">
-            próximo dia &rarr;
-          </Link>
-        </div>
-        <p className="text-center text-sm font-medium text-ink">
-          {new Date(`${date}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-          })}
-        </p>
-
-        <StatusLegend />
-
-        {(professionals ?? []).length === 0 ? (
-          <p className="text-sm text-muted-soft">Nenhum profissional cadastrado.</p>
-        ) : (
-          <div className="card overflow-x-auto p-4">
-            <p className="pb-2 text-[11px] text-muted-soft">
-              Clique num horário livre da grade pra agendar direto nele, ou use o formulário
-              manual abaixo.
+        <div className="lg:flex lg:items-start lg:gap-6">
+          <div className="flex-1 space-y-6">
+            <div className="flex items-center justify-between text-sm">
+              <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="link-accent">
+                &larr; dia anterior
+              </Link>
+              <form action="/dashboard/agenda" className="flex items-center gap-2">
+                <input type="date" name="date" defaultValue={date} className="input py-1 text-sm" />
+                <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
+                  Ir
+                </button>
+              </form>
+              <Link href={`/dashboard/agenda?date=${addDays(date, 1)}`} className="link-accent">
+                próximo dia &rarr;
+              </Link>
+            </div>
+            <p className="text-center text-sm font-medium text-ink">
+              {new Date(`${date}T00:00:00${BRAZIL_UTC_OFFSET}`).toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+              })}
             </p>
-            <div
-              className="grid"
-              style={{
-                gridTemplateColumns: `56px repeat(${(professionals ?? []).length}, minmax(180px, 1fr))`,
-              }}
-            >
-              <div />
-              {(professionals ?? []).map((prof) => (
-                <div key={prof.id} className="pb-2 text-center text-sm font-medium text-ink">
-                  {prof.full_name}
-                </div>
-              ))}
 
-              <div className="relative" style={{ height: gridHeight }}>
-                {hourMarks.map((m) => (
-                  <div
-                    key={m}
-                    className="absolute right-2 -translate-y-1/2 text-[11px] text-muted-soft"
-                    style={{ top: (m - gridStartMin) * PX_PER_MIN }}
-                  >
-                    {timeStringFromMinutes(m)}
-                  </div>
-                ))}
-              </div>
+            <StatusLegend />
 
-              {(professionals ?? []).map((prof) => (
+            {(professionals ?? []).length === 0 ? (
+              <p className="text-sm text-muted-soft">Nenhum profissional cadastrado.</p>
+            ) : (
+              <div className="card overflow-x-auto p-4">
+                <p className="pb-2 text-[11px] text-muted-soft">
+                  Clique num horário livre da grade pra agendar direto nele, ou use o formulário
+                  manual.
+                </p>
                 <div
-                  key={prof.id}
-                  className="relative border-l border-border"
+                  className="grid"
                   style={{
-                    height: gridHeight,
-                    backgroundImage:
-                      "repeating-linear-gradient(to bottom, var(--color-border) 0, var(--color-border) 1px, transparent 1px, transparent " +
-                      60 * PX_PER_MIN +
-                      "px)",
+                    gridTemplateColumns: `56px repeat(${(professionals ?? []).length}, minmax(180px, 1fr))`,
                   }}
                 >
-                  {slotMarks.map((m) => (
-                    <Link
-                      key={m}
-                      href={`/dashboard/agenda?date=${date}&profId=${prof.id}&time=${timeStringFromMinutes(m)}#agendar-form`}
-                      aria-label={`Agendar ${timeStringFromMinutes(m)} com ${prof.full_name}`}
-                      className="absolute inset-x-0 block hover:bg-accent-soft/50"
-                      style={{ top: (m - gridStartMin) * PX_PER_MIN, height: SLOT_MINUTES * PX_PER_MIN }}
-                    />
+                  {/* sticky: em telas estreitas com mais de um profissional, a
+                  grade rola na horizontal — sem isso a coluna de horários
+                  (a referência de "que hora é essa consulta") some de vista. */}
+                  <div className="sticky left-0 z-10 bg-paper" />
+                  {(professionals ?? []).map((prof) => (
+                    <div key={prof.id} className="pb-2 text-center text-sm font-medium text-ink">
+                      {prof.full_name}
+                    </div>
                   ))}
 
-                  {(() => {
-                    const dayAppts = byProfessional.get(prof.id) ?? [];
-                    const lanes = layoutOverlapLanes(
-                      dayAppts.map((a) => ({
-                        id: a.id,
-                        startMin: minutesOfDayBR(a.starts_at),
-                        endMin: minutesOfDayBR(a.ends_at),
-                      })),
-                    );
-
-                    return dayAppts.map((appt) => {
-                      const service = Array.isArray(appt.service_types)
-                        ? appt.service_types[0]
-                        : appt.service_types;
-                      const startMin = minutesOfDayBR(appt.starts_at);
-                      const endMin = minutesOfDayBR(appt.ends_at);
-                      const top = (startMin - gridStartMin) * PX_PER_MIN;
-                      const height = Math.max((endMin - startMin) * PX_PER_MIN, 34);
-                      const { col, cols } = lanes.get(appt.id) ?? { col: 0, cols: 1 };
-                      const widthPct = 100 / cols;
-
-                      return (
-                        <div
-                          key={appt.id}
-                          className={`absolute overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight ${STATUS_CLASS[appt.status]}`}
-                          style={{
-                            top,
-                            height,
-                            left: `calc(${col * widthPct}% + 2px)`,
-                            width: `calc(${widthPct}% - 4px)`,
-                          }}
-                        >
-                        <div className="font-semibold">
-                          {timeStringFromMinutes(startMin)} · {appt.patient_name}
-                        </div>
-                        <div className="truncate">
-                          {service?.name} · {appt.patient_phone}
-                        </div>
-                        <div className="mt-0.5 flex items-center gap-2">
-                          <span className="font-medium">{STATUS_LABEL[appt.status]}</span>
-                          {appt.status === "pending" && (
-                            <form action={confirmAppointmentManually}>
-                              <input type="hidden" name="id" value={appt.id} />
-                              <SubmitButton
-                                pendingText="..."
-                                className="font-medium text-accent hover:text-accent-dark"
-                              >
-                                confirmar
-                              </SubmitButton>
-                            </form>
-                          )}
-                          {(appt.status === "pending" || appt.status === "confirmed") && (
-                            <form action={cancelAppointment}>
-                              <input type="hidden" name="id" value={appt.id} />
-                              <SubmitButton
-                                pendingText="..."
-                                className="font-medium text-red-600 hover:text-red-700"
-                              >
-                                cancelar
-                              </SubmitButton>
-                            </form>
-                          )}
-                        </div>
+                  <div className="sticky left-0 z-10 bg-paper" style={{ height: gridHeight }}>
+                    {hourMarks.map((m) => (
+                      <div
+                        key={m}
+                        className="absolute right-2 -translate-y-1/2 text-[11px] text-muted-soft"
+                        style={{ top: (m - gridStartMin) * PX_PER_MIN }}
+                      >
+                        {timeStringFromMinutes(m)}
                       </div>
-                      );
-                    });
-                  })()}
+                    ))}
+                  </div>
+
+                  {(professionals ?? []).map((prof) => (
+                    <div
+                      key={prof.id}
+                      className="relative border-l border-border"
+                      style={{
+                        height: gridHeight,
+                        backgroundImage:
+                          "repeating-linear-gradient(to bottom, var(--color-border) 0, var(--color-border) 1px, transparent 1px, transparent " +
+                          60 * PX_PER_MIN +
+                          "px)",
+                      }}
+                    >
+                      {slotMarks.map((m) => (
+                        <Link
+                          key={m}
+                          href={`/dashboard/agenda?date=${date}&profId=${prof.id}&time=${timeStringFromMinutes(m)}#agendar-form`}
+                          aria-label={`Agendar ${timeStringFromMinutes(m)} com ${prof.full_name}`}
+                          className="absolute inset-x-0 block hover:bg-accent-soft/50"
+                          style={{ top: (m - gridStartMin) * PX_PER_MIN, height: SLOT_MINUTES * PX_PER_MIN }}
+                        />
+                      ))}
+
+                      {(() => {
+                        const dayAppts = byProfessional.get(prof.id) ?? [];
+                        const lanes = layoutOverlapLanes(
+                          dayAppts.map((a) => ({
+                            id: a.id,
+                            startMin: minutesOfDayBR(a.starts_at),
+                            endMin: minutesOfDayBR(a.ends_at),
+                          })),
+                        );
+
+                        return dayAppts.map((appt) => {
+                          const service = Array.isArray(appt.service_types)
+                            ? appt.service_types[0]
+                            : appt.service_types;
+                          const startMin = minutesOfDayBR(appt.starts_at);
+                          const endMin = minutesOfDayBR(appt.ends_at);
+                          const top = (startMin - gridStartMin) * PX_PER_MIN;
+                          const height = Math.max((endMin - startMin) * PX_PER_MIN, 34);
+                          const { col, cols } = lanes.get(appt.id) ?? { col: 0, cols: 1 };
+                          const widthPct = 100 / cols;
+
+                          return (
+                            <div
+                              key={appt.id}
+                              className={`absolute overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight ${STATUS_CLASS[appt.status]}`}
+                              style={{
+                                top,
+                                height,
+                                left: `calc(${col * widthPct}% + 2px)`,
+                                width: `calc(${widthPct}% - 4px)`,
+                              }}
+                            >
+                              <div className="font-semibold">
+                                {timeStringFromMinutes(startMin)} ·{" "}
+                                {appt.patient_id ? (
+                                  <Link
+                                    href={`/dashboard/pacientes/${appt.patient_id}`}
+                                    className="underline hover:no-underline"
+                                  >
+                                    {appt.patient_name}
+                                  </Link>
+                                ) : (
+                                  appt.patient_name
+                                )}
+                              </div>
+                              <div className="truncate">
+                                {service?.name} · {appt.patient_phone}
+                              </div>
+                              <div className="mt-0.5 flex items-center gap-2">
+                                <span className="font-medium">
+                                  {STATUS_GLYPH[appt.status]} {STATUS_LABEL[appt.status]}
+                                </span>
+                                {appt.status === "pending" && (
+                                  <form action={confirmAppointmentManually}>
+                                    <input type="hidden" name="id" value={appt.id} />
+                                    <SubmitButton
+                                      pendingText="..."
+                                      className="font-medium text-accent hover:text-accent-dark"
+                                    >
+                                      confirmar
+                                    </SubmitButton>
+                                  </form>
+                                )}
+                                {(appt.status === "pending" || appt.status === "confirmed") && (
+                                  <form action={cancelAppointment}>
+                                    <input type="hidden" name="id" value={appt.id} />
+                                    <input type="hidden" name="date" value={date} />
+                                    <ConfirmSubmitButton
+                                      confirmMessage="Cancelar esta consulta?"
+                                      pendingText="..."
+                                      className="font-medium text-red-600 hover:text-red-700"
+                                    >
+                                      cancelar
+                                    </ConfirmSubmitButton>
+                                  </form>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {(serviceTypes ?? []).length === 0 && (
+              <p className="text-sm text-muted-soft">
+                Nenhum serviço cadastrado ainda.{" "}
+                <Link href="/dashboard/agenda/configuracoes" className="link-accent">
+                  Configure os tipos de consulta
+                </Link>{" "}
+                antes de agendar.
+              </p>
+            )}
+
+            {/* Telas estreitas: formulário recolhível no fim da página. */}
+            <details
+              key={`agendar-mobile-${profId ?? ""}-${prefillTime ?? ""}-${patientId ?? ""}`}
+              id="agendar-form"
+              className="card p-4 lg:hidden"
+              open={hasPrefill ? true : undefined}
+            >
+              <summary className="cursor-pointer text-sm font-medium text-ink">
+                Agendar manualmente
+              </summary>
+              <div className="mt-4">{bookingForm}</div>
+            </details>
           </div>
-        )}
 
-        {/* key força remount quando profId/time mudam — sem isso, numa
-        navegação client-side (clicar num slot vindo de outro slot já
-        clicado), o React reaproveita o <details> existente e não
-        reaplica o atributo `open`. */}
-        <details
-          key={`agendar-${profId ?? ""}-${prefillTime ?? ""}`}
-          id="agendar-form"
-          className="card p-4"
-          open={profId || prefillTime ? true : undefined}
-        >
-          <summary className="cursor-pointer text-sm font-medium text-ink">
-            Agendar manualmente
-          </summary>
-          <form action={createManualAppointment} className="mt-4 space-y-3 text-sm">
-            <input type="hidden" name="date" value={date} />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Profissional</label>
-                <select name="professionalId" required defaultValue={profId} className="input">
-                  {(professionals ?? []).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Serviço</label>
-                <select name="serviceTypeId" required className="input">
-                  {(serviceTypes ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.duration_minutes}min)
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Horário</label>
-                <input type="time" name="time" required defaultValue={prefillTime} className="input" />
-              </div>
-              <PatientPicker
-                patients={(patients ?? []).map((p) => ({
-                  id: p.id,
-                  fullName: p.full_name,
-                  phone: p.phone,
-                  email: p.email,
-                }))}
-              />
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Repetir</label>
-                <select name="recurrence" defaultValue="none" className="input">
-                  <option value="none">Não repetir</option>
-                  <option value="weekly">Semanalmente</option>
-                  <option value="biweekly">Quinzenalmente</option>
-                  <option value="monthly">Mensalmente</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-ink">Quantas vezes</label>
-                <input
-                  type="number"
-                  name="occurrences"
-                  min={1}
-                  max={12}
-                  defaultValue={1}
-                  className="input"
-                />
-              </div>
+          {/* Telas largas: painel fixo ao lado da grade, sempre visível —
+          em vez do <details> recolhido no fim da página, que ficava fora
+          de vista justo quando o clique num slot pedia atenção pro form. */}
+          <aside className="hidden w-80 shrink-0 lg:block">
+            <div className="card sticky top-6 p-4">
+              <h2 className="mb-3 font-medium text-ink">Agendar manualmente</h2>
+              {bookingForm}
             </div>
-            <p className="text-[11px] text-muted-soft">
-              Em caso de recorrência, cada data vira uma consulta independente (cada uma recebe
-              sua própria pergunta de confirmação por WhatsApp) — se uma data colidir com outro
-              horário, as demais continuam sendo agendadas normalmente.
-            </p>
-            <SubmitButton pendingText="Agendando..." className="btn-primary">
-              Agendar
-            </SubmitButton>
-          </form>
-        </details>
-
-        {(serviceTypes ?? []).length === 0 && (
-          <p className="text-sm text-muted-soft">
-            Nenhum serviço cadastrado ainda.{" "}
-            <Link href="/dashboard/agenda/configuracoes" className="link-accent">
-              Configure os tipos de consulta
-            </Link>{" "}
-            antes de agendar.
-          </p>
-        )}
+          </aside>
+        </div>
       </div>
     </main>
   );

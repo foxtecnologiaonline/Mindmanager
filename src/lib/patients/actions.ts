@@ -96,7 +96,13 @@ export async function deletePatient(formData: FormData) {
   const { supabase } = await requireTenantId();
   const id = String(formData.get("id"));
 
-  const { error } = await supabase.from("patients").delete().eq("id", id);
+  // Soft delete: marca deleted_at em vez de apagar de verdade — dá pra
+  // desfazer pelo toast, e mantém o histórico de consultas já ligadas
+  // a esse paciente (patient_id em appointments) intacto.
+  const { error } = await supabase
+    .from("patients")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
 
   revalidatePath("/dashboard/pacientes");
 
@@ -105,6 +111,16 @@ export async function deletePatient(formData: FormData) {
   }
 
   redirect(
-    `/dashboard/pacientes?success=${encodeURIComponent("Paciente removido.")}`,
+    `/dashboard/pacientes?success=${encodeURIComponent("Paciente removido.")}&undoPatientId=${id}`,
   );
+}
+
+export async function undoDeletePatient(formData: FormData) {
+  const { supabase } = await requireTenantId();
+  const id = String(formData.get("id"));
+
+  await supabase.from("patients").update({ deleted_at: null }).eq("id", id);
+
+  revalidatePath("/dashboard/pacientes");
+  redirect(`/dashboard/pacientes?success=${encodeURIComponent("Remoção desfeita.")}`);
 }

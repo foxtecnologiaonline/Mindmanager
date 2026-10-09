@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getTenantContext } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { deletePatient, updatePatient } from "@/lib/patients/actions";
 
 export const metadata: Metadata = { title: "Editar paciente" };
@@ -14,21 +16,15 @@ export default async function EditPatientPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await getTenantContext();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
   const { id } = await params;
 
   const { data: patient } = await supabase
     .from("patients")
     .select("id, full_name, phone, email, notes")
     .eq("id", id)
+    .is("deleted_at", null)
     .single();
 
   if (!patient) {
@@ -40,8 +36,11 @@ export default async function EditPatientPage({
       <div className="mx-auto max-w-md space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="heading text-2xl">Editar paciente</h1>
-          <Link href="/dashboard/pacientes" className="link-accent text-sm">
-            Voltar
+          <Link
+            href={`/dashboard/agenda?patientId=${patient.id}`}
+            className="btn-secondary px-3 py-1.5 text-xs"
+          >
+            Nova consulta
           </Link>
         </div>
 
@@ -93,12 +92,13 @@ export default async function EditPatientPage({
 
         <form action={deletePatient}>
           <input type="hidden" name="id" value={patient.id} />
-          <SubmitButton
+          <ConfirmSubmitButton
+            confirmMessage="Remover este paciente? Dá pra desfazer em seguida."
             pendingText="Removendo..."
             className="text-sm font-medium text-red-600 hover:text-red-700"
           >
             Remover paciente
-          </SubmitButton>
+          </ConfirmSubmitButton>
         </form>
       </div>
     </main>

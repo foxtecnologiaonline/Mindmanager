@@ -9,11 +9,18 @@ type Patient = { id: string; fullName: string; phone: string; email: string | nu
 // que o agendamento manual já usava — continuam editáveis (paciente
 // novo, ou dado desatualizado) e são o que o form realmente envia pro
 // server action, sem mudar o shape do FormData.
-export function PatientPicker({ patients }: { patients: Patient[] }) {
+export function PatientPicker({
+  patients,
+  initialPatientId,
+}: {
+  patients: Patient[];
+  initialPatientId?: string;
+}) {
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(initialPatientId ?? "");
+  const initialPatient = patients.find((p) => p.id === initialPatientId);
 
   function handleSelect(id: string) {
     setSelectedId(id);
@@ -45,15 +52,34 @@ export function PatientPicker({ patients }: { patients: Patient[] }) {
       </div>
       <div className="space-y-1">
         <label className="font-medium text-ink">Nome do paciente</label>
-        <input ref={nameRef} name="patientName" required className="input" />
+        <input
+          ref={nameRef}
+          name="patientName"
+          required
+          defaultValue={initialPatient?.fullName}
+          className="input"
+        />
       </div>
       <div className="space-y-1">
         <label className="font-medium text-ink">Telefone</label>
-        <input ref={phoneRef} name="patientPhone" required placeholder="55119..." className="input" />
+        <input
+          ref={phoneRef}
+          name="patientPhone"
+          required
+          placeholder="55119..."
+          defaultValue={initialPatient?.phone}
+          className="input"
+        />
       </div>
       <div className="space-y-1">
         <label className="font-medium text-ink">E-mail (opcional)</label>
-        <input ref={emailRef} name="patientEmail" type="email" className="input" />
+        <input
+          ref={emailRef}
+          name="patientEmail"
+          type="email"
+          defaultValue={initialPatient?.email ?? ""}
+          className="input"
+        />
       </div>
     </>
   );

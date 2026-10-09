@@ -1,4 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
 // Normaliza um nome em slug ascii-kebab (ex: "Clínica São José" ->
 // "clinica-sao-jose"). Compartilhado entre o fallback aqui e
@@ -85,3 +88,56 @@ export async function requireTenantId(
 
   return profile?.tenant_id ?? (await ensureTenantId(supabase, userId, profile?.full_name ?? null));
 }
+
+export type TenantContext = {
+  userId: string;
+  tenantId: string;
+  fullName: string;
+  role: string;
+  tenantName: string | null;
+  tenantSlug: string | null;
+  logoUrl: string | null;
+};
+
+// Auth + perfil + tenant, numa chamada só, memoizada por request via
+// cache() do React — chamada de novo em cada página sob /dashboard (e
+// no layout compartilhado) sem repetir a ida ao banco: mesmo request,
+// mesmo resultado. Cada página continua checando a sessão (defesa em
+// profundidade, não só confiar no layout pai), só que sem pagar a ida
+// ao banco de novo.
+export const getTenantContext = cache(async (): Promise<TenantContext> => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const profileQuery = () =>
+    supabase
+      .from("profiles")
+      .select("full_name, role, tenant_id, tenants ( name, slug, logo_url )")
+      .eq("id", user.id)
+      .single();
+
+  let { data: profile } = await profileQuery();
+
+  if (!profile?.tenant_id) {
+    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
+    ({ data: profile } = await profileQuery());
+  }
+
+  const tenant = Array.isArray(profile!.tenants) ? profile!.tenants[0] : profile!.tenants;
+
+  return {
+    userId: user.id,
+    tenantId: profile!.tenant_id as string,
+    fullName: profile!.full_name as string,
+    role: profile!.role as string,
+    tenantName: tenant?.name ?? null,
+    tenantSlug: tenant?.slug ?? null,
+    logoUrl: tenant?.logo_url ?? null,
+  };
+});

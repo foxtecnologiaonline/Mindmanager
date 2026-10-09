@@ -38,6 +38,41 @@ body {
   color: var(--color-ink);
 }
 
+/* Microinterações sutis: entrada do toast e feedback de "ação concluída"
+   — pequenas, sem exagero, só confirmam que o clique teve efeito. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes success-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+.animate-success-pulse {
+  animation: success-pulse 0.5s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in,
+  .animate-success-pulse {
+    animation: none;
+  }
+}
+
 /* Foco visível em qualquer elemento interativo navegado por teclado —
    antes só `.input` tinha estado de foco definido; botões/links usavam
    o outline default do navegador (inconsistente entre eles). */
@@ -69,10 +104,13 @@ textarea:focus-visible {
     font-weight: 600;
     font-size: 0.9375rem;
     padding: 0.75rem 1.5rem;
-    transition: background-color 0.15s ease;
+    transition: background-color 0.15s ease, transform 0.1s ease;
   }
   .btn-primary:hover {
     background: var(--color-accent-dark);
+  }
+  .btn-primary:active {
+    transform: scale(0.97);
   }
   .btn-primary:disabled {
     opacity: 0.6;
@@ -91,10 +129,13 @@ textarea:focus-visible {
     font-weight: 600;
     font-size: 0.9375rem;
     padding: 0.75rem 1.5rem;
-    transition: background-color 0.15s ease;
+    transition: background-color 0.15s ease, transform 0.1s ease;
   }
   .btn-secondary:hover {
     background: var(--color-accent-soft);
+  }
+  .btn-secondary:active {
+    transform: scale(0.97);
   }
 
   .card {

@@ -1,33 +1,19 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { createPatient } from "@/lib/patients/actions";
+import { getTenantContext } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Novo paciente" };
 
 export default async function NewPatientPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  await getTenantContext();
 
   return (
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-md space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="heading text-2xl">Novo paciente</h1>
-          <Link href="/dashboard/pacientes" className="link-accent text-sm">
-            Voltar
-          </Link>
-        </div>
+        <h1 className="heading text-2xl">Novo paciente</h1>
 
         <Suspense fallback={null}>
           <Toast />

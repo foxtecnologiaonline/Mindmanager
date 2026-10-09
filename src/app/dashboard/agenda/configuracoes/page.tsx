@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ensureTenantId } from "@/lib/tenant";
+import { getTenantContext } from "@/lib/tenant";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { WhatsappConnection } from "@/components/whatsapp-connection";
@@ -29,34 +27,14 @@ const WEEKDAYS = [
 ];
 
 export default async function AgendaConfigPage() {
+  const { tenantId, role, logoUrl } = await getTenantContext();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  const profileQuery = () =>
-    supabase
-      .from("profiles")
-      .select("tenant_id, role, full_name, tenants ( logo_url, whatsapp_mode, whatsapp_number_id )")
-      .eq("id", user.id)
-      .single();
-
-  let { data: profile } = await profileQuery();
-
-  if (!profile?.tenant_id) {
-    // Rede de segurança: desde a migration 0007 isso não deveria faltar
-    // nunca (o tenant nasce no trigger de signup), mas resolve aqui
-    // mesmo em vez de redirecionar — nunca sai desta página.
-    await ensureTenantId(supabase, user.id, profile?.full_name ?? null);
-    ({ data: profile } = await profileQuery());
-  }
-
-  const tenantId = profile!.tenant_id as string;
-  const tenant = Array.isArray(profile!.tenants) ? profile!.tenants[0] : profile!.tenants;
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("whatsapp_mode, whatsapp_number_id")
+    .eq("id", tenantId)
+    .single();
 
   const [{ data: professionals }, { data: serviceTypes }, { data: workingHours }] =
     await Promise.all([
@@ -81,12 +59,7 @@ export default async function AgendaConfigPage() {
   return (
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-3xl space-y-8">
-        <div className="flex items-center justify-between">
-          <h1 className="heading text-2xl">Configurações da agenda</h1>
-          <Link href="/dashboard/agenda" className="link-accent text-sm">
-            Voltar para a agenda
-          </Link>
-        </div>
+        <h1 className="heading text-2xl">Configurações da agenda</h1>
 
         <Suspense fallback={null}>
           <Toast />
@@ -98,9 +71,9 @@ export default async function AgendaConfigPage() {
             Aparece na página pública de agendamento e no dashboard.
           </p>
           <div className="flex items-center gap-4">
-            {tenant?.logo_url ? (
+            {logoUrl ? (
               <Image
-                src={tenant.logo_url}
+                src={logoUrl}
                 alt="Logo atual"
                 width={56}
                 height={56}
@@ -138,7 +111,7 @@ export default async function AgendaConfigPage() {
           <WhatsappConnection
             mode={(tenant?.whatsapp_mode as "shared" | "own") ?? "shared"}
             numberId={tenant?.whatsapp_number_id ?? null}
-            isAdmin={profile!.role === "admin"}
+            isAdmin={role === "admin"}
           />
         </section>
 

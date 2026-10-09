@@ -213,10 +213,44 @@ export async function createManualAppointment(formData: FormData) {
 export async function cancelAppointment(formData: FormData) {
   const { supabase } = await requireProfile();
   const id = String(formData.get("id"));
+  const date = String(formData.get("date") ?? "");
+
+  // Guarda o status anterior pra oferecer "Desfazer" no toast — sem
+  // isso, cancelar era imediato e sem volta além de recriar o
+  // agendamento na mão.
+  const { data: before } = await supabase
+    .from("appointments")
+    .select("status")
+    .eq("id", id)
+    .single();
 
   await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
 
   revalidatePath("/dashboard/agenda");
+
+  const dateParam = date ? `&date=${date}` : "";
+  redirect(
+    `/dashboard/agenda?success=${encodeURIComponent("Consulta cancelada.")}&undoApptId=${id}&undoStatus=${before?.status ?? "pending"}${dateParam}`,
+  );
+}
+
+// Restaura o status anterior ao cancelamento — só os dois valores que
+// cancelAppointment pode ter sobrescrito; qualquer outra coisa é
+// ignorada (nunca deixa o "desfazer" setar um status arbitrário).
+export async function restoreAppointmentStatus(formData: FormData) {
+  const { supabase } = await requireProfile();
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status") ?? "");
+  const date = String(formData.get("date") ?? "");
+
+  if (status === "pending" || status === "confirmed") {
+    await supabase.from("appointments").update({ status }).eq("id", id);
+  }
+
+  revalidatePath("/dashboard/agenda");
+
+  const dateParam = date ? `&date=${date}` : "";
+  redirect(`/dashboard/agenda?success=${encodeURIComponent("Cancelamento desfeito.")}${dateParam}`);
 }
 
 // Fallback manual: equipe confirma por telefone/presencialmente, ou

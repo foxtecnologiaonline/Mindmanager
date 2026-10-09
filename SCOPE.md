@@ -5,6 +5,33 @@ SaaS multi-tenant. Sem TISS no MVP.
 
 **Tese de venda**: profissional online e cobrando em menos de 10 minutos, sem suporte manual.
 
+## UI/UX (2026-10-09)
+Revisão de layout/navegação/UX aplicada a todo `/dashboard`:
+- **Sidebar fixa (desktop) / tab bar (mobile)** em `dashboard/layout.tsx`
+  — substitui os links de navegação ad hoc que cada página
+  reimplementava do seu jeito (Pacientes, Configurar, Voltar). Inclui
+  busca global de paciente (Ctrl/Cmd+K) filtrando no cliente.
+- **Dashboard**: hero com nome/logo/números do dia + "Primeiros passos"
+  virou stepper horizontal com progresso, em vez de checklist vertical.
+- **Agenda**: formulário de agendamento manual virou painel fixo ao
+  lado da grade em telas largas (antes era um `<details>` recolhido no
+  fim da página); coluna de horários fica fixa (`sticky`) ao rolar a
+  grade na horizontal no mobile com mais de um profissional; status
+  (pendente/confirmado/cancelado) ganhou um glifo (●/✓/✕) além da cor,
+  pra não depender só de cor (WCAG 1.4.1).
+- **Paciente ↔ agenda**: agendamento do paciente na agenda linka pro
+  cadastro dele quando `patient_id` existe; cadastro do paciente tem
+  botão "Nova consulta" que abre a agenda com ele pré-selecionado.
+- **Confirmação + desfazer**: cancelar consulta e remover paciente
+  pedem confirmação (`window.confirm`) e oferecem "Desfazer" no toast
+  de sucesso. Remover paciente passou a ser soft-delete (`deleted_at`,
+  migration 0012) — reversível, e mantém o histórico de consultas já
+  ligadas a ele.
+- **getTenantContext()** (`lib/tenant.ts`): auth + perfil + tenant numa
+  chamada só, memoizada por request (`cache()` do React) — layout e
+  cada página sob `/dashboard` chamam de novo sem repetir a ida ao
+  banco.
+
 ## Fora de escopo (cortado, não esquecido)
 - TISS / faturamento de convênio
 - Multi-unidade / múltiplas filiais
