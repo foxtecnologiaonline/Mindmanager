@@ -122,6 +122,21 @@ por ele).
 ### F3 — Financeiro
 Pagamento (PIX/cartão) · contas a receber · recibo
 
+**Contas a receber + recibo implementado em 2026-10-09**
+(`/dashboard/financeiro`, migration 0013): toda consulta cujo tipo tem
+preço cadastrado (`service_types.price_cents`) já gera uma cobrança
+pendente na hora de agendar — automático, sem passo extra. A equipe
+marca como pago (PIX/cartão/dinheiro/outro) quando recebe por fora do
+sistema, cancela, desfaz, e emite recibo (página imprimível/PDF via
+impressão do navegador). Dá pra criar cobrança manual também (sem
+depender de agendamento).
+**Falta** (decisão de negócio, não só técnica — qual provedor):
+processar pagamento de verdade dentro do sistema (gerar QR PIX
+automático, capturar cartão) — hoje o "Pagamento" do título desta fase
+continua sendo feito por fora (PIX ou maquininha da própria clínica); o
+sistema só registra. Requer escolher um gateway (Mercado Pago, Asaas,
+Stripe etc.), credenciais e webhook de confirmação.
+
 ### F4 — Retenção
 Lembrete pós-consulta · NPS
 

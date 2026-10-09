@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "home" as const },
   { href: "/dashboard/agenda", label: "Agenda", icon: "calendar" as const },
   { href: "/dashboard/pacientes", label: "Pacientes", icon: "users" as const },
+  { href: "/dashboard/financeiro", label: "Financeiro", icon: "cash" as const },
   { href: "/dashboard/agenda/configuracoes", label: "Configurações", icon: "settings" as const },
 ];
 
@@ -58,6 +59,14 @@ function NavIcon({ name, className }: { name: IconName; className?: string }) {
         <svg {...common}>
           <circle cx="10" cy="10" r="2.6" />
           <path d="M10 3.5v2M10 14.5v2M3.5 10h2M14.5 10h2M5.4 5.4l1.4 1.4M13.2 13.2l1.4 1.4M5.4 14.6l1.4-1.4M13.2 6.8l1.4-1.4" />
+        </svg>
+      );
+    case "cash":
+      return (
+        <svg {...common}>
+          <rect x="2.5" y="5.5" width="15" height="9" rx="1.5" />
+          <circle cx="10" cy="10" r="2" />
+          <path d="M5 7.5v0M15 12.5v0" />
         </svg>
       );
   }
