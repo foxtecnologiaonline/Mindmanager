@@ -6,11 +6,12 @@ import { NextResponse, type NextRequest } from "next/server";
 const AUTH_PATHS = ["/login", "/signup", "/auth", "/esqueci-senha"];
 
 // Sempre públicas, independente de sessão: landing page, página de
-// agendamento do paciente e rotas server-to-server (cron), que têm sua
-// própria checagem de segurança (CRON_SECRET) em vez de depender de
-// cookie de usuário. Prefixos "startsWith" — nunca "/" aqui, ou todo o
-// resto do app (inclusive /dashboard) passaria a ser público.
-const ALWAYS_PUBLIC_PREFIXES = ["/agendar", "/api"];
+// agendamento e de pagamento do paciente, e rotas server-to-server
+// (cron), que têm sua própria checagem de segurança (CRON_SECRET) em
+// vez de depender de cookie de usuário. Prefixos "startsWith" — nunca
+// "/" aqui, ou todo o resto do app (inclusive /dashboard) passaria a
+// ser público.
+const ALWAYS_PUBLIC_PREFIXES = ["/agendar", "/pagar", "/api"];
 // Match exato: essas rotas não têm sub-rotas e "/" via startsWith casaria
 // com qualquer caminho.
 const ALWAYS_PUBLIC_EXACT = ["/"];

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { stripDiacritics } from "@/lib/text";
 
 // Normaliza um nome em slug ascii-kebab (ex: "Clínica São José" ->
 // "clinica-sao-jose"). Compartilhado entre o fallback aqui e
@@ -9,10 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 // lugares).
 export function slugify(name: string): string {
   return (
-    name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
+    stripDiacritics(name.toLowerCase())
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "") || "clinica"
   );

@@ -140,6 +140,27 @@ em 2026-10-09: nenhum gateway por agora — fica no registro manual até
 haver motivo de negócio pra processar pagamento de verdade dentro do
 sistema.
 
+**Acerto de sessões + pacotes + link Pix implementado em 2026-10-09**
+(migration 0014):
+- `/dashboard/financeiro/pacotes`: pacote de sessões pago antecipado
+  (cadastra já como pago, com recibo, e acompanha saldo — "Registrar
+  sessão usada" é manual, não ligado automaticamente ao agendamento).
+- `/dashboard/financeiro?view=acerto`: agrupa cobranças pendentes por
+  paciente (quantas sessões, valor total) pra quem paga depois em vez
+  de por sessão.
+- **Link de pagamento** (`/dashboard/financeiro?view=links`,
+  `/pagar/[id]` público): junta uma ou mais cobranças pendentes numa
+  página com o código Pix Copia e Cola, gerado a partir da própria
+  chave Pix da clínica (`lib/billing/pix.ts` — formatação local, sem
+  chamar nenhuma API; a clínica configura a chave em
+  `/dashboard/financeiro`). Confirmação de recebimento continua manual,
+  pelo painel — a página pública nunca marca nada como pago.
+  **Limite conhecido**: o formato do payload (EMV/BR Code + CRC16) foi
+  verificado contra a especificação e contra o vetor de teste padrão
+  do CRC, mas não foi testado escaneando com um app de banco de
+  verdade — convém confirmar com um valor pequeno antes de divulgar
+  pra pacientes.
+
 ### F4 — Retenção
 Lembrete pós-consulta · NPS
 

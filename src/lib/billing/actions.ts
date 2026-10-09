@@ -94,3 +94,28 @@ export async function cancelInvoice(formData: FormData) {
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?success=${encodeURIComponent("Cobrança cancelada.")}`);
 }
+
+// Dados usados só pra formatar o código Pix Copia e Cola (lib/billing/pix.ts)
+// — a clínica informa a própria chave, nada é validado contra o Banco
+// Central nem enviado a nenhum provedor.
+export async function updatePixSettings(formData: FormData) {
+  const { supabase, tenantId } = await requireTenant();
+
+  const pixKey = String(formData.get("pixKey") ?? "").trim();
+  const pixHolderName = String(formData.get("pixHolderName") ?? "").trim();
+  const pixCity = String(formData.get("pixCity") ?? "").trim();
+
+  if (!pixKey || !pixHolderName || !pixCity) {
+    redirect(
+      `/dashboard/financeiro?error=${encodeURIComponent("Preencha chave Pix, nome e cidade.")}`,
+    );
+  }
+
+  await supabase
+    .from("tenants")
+    .update({ pix_key: pixKey, pix_holder_name: pixHolderName, pix_city: pixCity })
+    .eq("id", tenantId);
+
+  revalidatePath("/dashboard/financeiro");
+  redirect(`/dashboard/financeiro?success=${encodeURIComponent("Dados do Pix salvos.")}`);
+}
