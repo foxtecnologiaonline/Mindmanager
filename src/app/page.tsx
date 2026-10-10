@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+// Nonce da CSP só existe em renderização dinâmica (ver src/proxy.ts).
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-8 p-6">

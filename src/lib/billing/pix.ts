@@ -28,7 +28,7 @@ function sanitize(value: string, maxLength: number, fallback: string): string {
   return (normalized || fallback).slice(0, maxLength);
 }
 
-function crc16CCITT(payload: string): string {
+export function crc16CCITT(payload: string): string {
   let crc = 0xffff;
   for (let i = 0; i < payload.length; i++) {
     crc ^= payload.charCodeAt(i) << 8;

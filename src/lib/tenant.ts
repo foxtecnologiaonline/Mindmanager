@@ -2,19 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { stripDiacritics } from "@/lib/text";
-
-// Normaliza um nome em slug ascii-kebab (ex: "Clínica São José" ->
-// "clinica-sao-jose"). Compartilhado entre o fallback aqui e
-// /onboarding (mesmo cálculo que antes vivia duplicado nos dois
-// lugares).
-export function slugify(name: string): string {
-  return (
-    stripDiacritics(name.toLowerCase())
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") || "clinica"
-  );
-}
+import { slugify } from "@/lib/slug";
 
 // Garante que o usuário logado tem um tenant, provisionando um padrão
 // na hora se faltar — nunca navega pra outra página pra fazer isso.

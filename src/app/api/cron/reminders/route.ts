@@ -1,6 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { isCronAuthorized } from "@/lib/cron-auth";
+import { logger } from "@/lib/logger";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
 import { buildReminder24h } from "@/lib/notifications/messages";
 import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
@@ -16,15 +17,8 @@ import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
  * appointments de todos os tenants, contornando a RLS por tenant que
  * existe para o acesso de usuários finais.
  */
-function isAuthorized(authHeader: string | null, secret: string | undefined): boolean {
-  if (!secret || !authHeader) return false;
-  const a = Buffer.from(authHeader);
-  const b = Buffer.from(`Bearer ${secret}`);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
+  if (!isCronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -53,6 +47,7 @@ export async function GET(request: NextRequest) {
     .lte("starts_at", windowEnd);
 
   if (error) {
+    logger.error("cron.reminders.query_failed", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

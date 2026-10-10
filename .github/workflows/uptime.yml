@@ -1,0 +1,24 @@
+name: Uptime
+
+# Monitor de disponibilidade: chama /api/health a cada 15 min. Se falhar, o
+# job fica vermelho e o GitHub notifica quem segue o repositório.
+# Configure a variável de repositório SITE_URL (Settings > Variables),
+# ex: https://mindmanager.vercel.app — sem ela o job apenas avisa e sai.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checar /api/health
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "::warning::Defina a variável SITE_URL do repositório para ativar o monitor."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 20 --retry 2 --retry-delay 5 "$SITE_URL/api/health"

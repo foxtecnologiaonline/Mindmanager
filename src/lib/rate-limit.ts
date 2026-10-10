@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -27,4 +28,10 @@ export async function checkRateLimit(key: string, limit: number, windowSeconds: 
   }
 
   return data === true;
+}
+
+// Chave estável para limitar por e-mail sem guardar o e-mail em claro na
+// tabela de rate limit.
+export function hashKey(value: string) {
+  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex").slice(0, 24);
 }
