@@ -270,19 +270,66 @@ export async function restoreAppointmentStatus(formData: FormData) {
   const { supabase } = await requireProfile();
   const id = String(formData.get("id"));
   const status = String(formData.get("status") ?? "");
+  const fromParam = String(formData.get("from") ?? "cancelled");
+  const from = ["cancelled", "completed", "no_show"].includes(fromParam) ? fromParam : "cancelled";
   const date = String(formData.get("date") ?? "");
 
   // Só reabre o que está cancelado — nunca sobrescreve uma consulta que
   // já voltou a outro estado (ex: concluída) por um link de "desfazer" velho.
   if (status === "pending" || status === "confirmed") {
-    await supabase.from("appointments").update({ status }).eq("id", id).eq("status", "cancelled");
+    await supabase.from("appointments").update({ status }).eq("id", id).eq("status", from);
   }
 
   revalidatePath("/dashboard/agenda");
   revalidatePath("/dashboard/financeiro");
 
   const dateParam = isValidDateStr(date) ? `&date=${date}` : "";
-  redirect(`/dashboard/agenda?success=${encodeURIComponent("Cancelamento desfeito.")}${dateParam}`);
+  redirect(
+    `/dashboard/agenda?success=${encodeURIComponent(from === "cancelled" ? "Cancelamento desfeito." : "Desfeito.")}${dateParam}`,
+  );
+}
+
+// Encerra a consulta: "concluída" (baixa o pacote do paciente, se houver,
+// e dispara a mensagem pós-consulta com a pesquisa de satisfação) ou
+// "faltou". Só depois do horário marcado.
+export async function markAppointmentOutcome(formData: FormData) {
+  const { supabase } = await requireProfile();
+  const id = String(formData.get("id"));
+  const outcome = String(formData.get("outcome") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const dateParam = isValidDateStr(date) ? `&date=${date}` : "";
+
+  if (outcome !== "completed" && outcome !== "no_show") {
+    redirect(`/dashboard/agenda?error=${encodeURIComponent("Resultado inválido.")}${dateParam}`);
+  }
+
+  const { data: before } = await supabase
+    .from("appointments")
+    .select("status, starts_at")
+    .eq("id", id)
+    .single();
+
+  if (!before || (before.status !== "pending" && before.status !== "confirmed")) {
+    redirect(`/dashboard/agenda?error=${encodeURIComponent("Essa consulta não pode mais ser encerrada.")}${dateParam}`);
+  }
+  if (new Date(before.starts_at).getTime() > Date.now()) {
+    redirect(
+      `/dashboard/agenda?error=${encodeURIComponent("Só dá para encerrar a consulta depois do horário marcado.")}${dateParam}`,
+    );
+  }
+
+  const { error } = await supabase.from("appointments").update({ status: outcome }).eq("id", id);
+  if (error) {
+    redirect(`/dashboard/agenda?error=${encodeURIComponent(error.message)}${dateParam}`);
+  }
+
+  revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/financeiro");
+  revalidatePath("/dashboard/financeiro/pacotes");
+
+  redirect(
+    `/dashboard/agenda?success=${encodeURIComponent(outcome === "completed" ? "Consulta concluída." : "Falta registrada.")}&undoApptId=${id}&undoStatus=${before.status}&undoFrom=${outcome}${dateParam}`,
+  );
 }
 
 // Fallback manual: equipe confirma por telefone/presencialmente, ou

@@ -93,6 +93,17 @@ begin
     raise exception 'Paciente inválido.';
   end if;
 
+  -- Abrir/recarregar a mesma tela várias vezes não deve inflar a trilha:
+  -- uma visualização por usuário/paciente a cada 5 minutos basta.
+  if p_action = 'record.view' and exists (
+    select 1 from public.audit_log
+    where tenant_id = v_tenant_id and user_id = auth.uid() and action = p_action
+      and patient_id is not distinct from p_patient_id
+      and created_at > now() - interval '5 minutes'
+  ) then
+    return;
+  end if;
+
   insert into public.audit_log (tenant_id, user_id, action, entity, entity_id, patient_id, metadata)
   values (v_tenant_id, auth.uid(), p_action, p_entity, p_entity_id, p_patient_id, coalesce(p_metadata, '{}'::jsonb));
 end;
@@ -245,6 +256,23 @@ revoke update on public.clinical_notes from authenticated, anon;
 grant update (subjective, objective, assessment, plan, status) on public.clinical_notes to authenticated;
 revoke all on public.clinical_notes from anon;
 
+-- Confere a integridade das evoluções assinadas de um paciente: o hash
+-- gravado na assinatura precisa bater com o conteúdo atual. Roda com as
+-- permissões de quem chama (RLS vale), então recepção não vê nada.
+create or replace function public.verify_patient_notes(p_patient_id uuid)
+returns table (note_id uuid, intact boolean)
+language sql
+security invoker
+stable
+as $$
+  select n.id, n.content_hash = public.clinical_note_hash(n)
+  from public.clinical_notes n
+  where n.patient_id = p_patient_id and n.status = 'signed';
+$$;
+
+revoke all on function public.verify_patient_notes(uuid) from public;
+grant execute on function public.verify_patient_notes(uuid) to authenticated;
+
 -- ------------------------------------------------------------------ anexos
 create table if not exists public.patient_attachments (
   id uuid primary key default gen_random_uuid(),
@@ -315,6 +343,27 @@ create policy "patient_files_insert"
     and (storage.foldername(name))[1] = public.current_tenant_id()::text
     and public.current_user_role() in ('admin', 'profissional')
   );
+
+-- Consentimento registrado/alterado também entra na trilha.
+create or replace function public.audit_patient_consent()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.consent_at is distinct from old.consent_at then
+    insert into public.audit_log (tenant_id, user_id, action, entity, entity_id, patient_id, metadata)
+    values (new.tenant_id, auth.uid(), 'patient.consent', 'patient', new.id, new.id,
+            jsonb_build_object('consent_at', new.consent_at));
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists patients_consent_audit on public.patients;
+create trigger patients_consent_audit
+  after update of consent_at on public.patients
+  for each row execute function public.audit_patient_consent();
 
 -- ---------------------------------------------- auditoria automática (escrita)
 create or replace function public.audit_clinical_writes()

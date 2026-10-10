@@ -62,3 +62,26 @@ test("health responde JSON", async ({ request }) => {
   expect([200, 503]).toContain(res.status());
   expect((await res.json()).status).toBeDefined();
 });
+
+test("convite inválido mostra aviso (sem quebrar)", async ({ page }) => {
+  await page.goto("/convite/token-que-nao-existe");
+  await expect(page.getByRole("heading", { name: "Convite indisponível" })).toBeVisible();
+});
+
+test("link de avaliação inválido mostra aviso", async ({ page }) => {
+  await page.goto("/nps/nao-e-um-uuid");
+  await expect(page.getByRole("heading", { name: "Link indisponível" })).toBeVisible();
+});
+
+test("rotas novas do dashboard exigem login", async ({ request }) => {
+  for (const path of [
+    "/dashboard/equipe",
+    "/dashboard/financeiro/recebimentos",
+    "/dashboard/financeiro/recebimentos/csv",
+    "/dashboard/pacientes/x/prontuario",
+  ]) {
+    const res = await request.get(path, { maxRedirects: 0 });
+    expect(res.status(), path).toBe(307);
+    expect(res.headers()["location"], path).toContain("/login");
+  }
+});

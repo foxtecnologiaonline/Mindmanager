@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
+import { requireCapability } from "@/lib/permissions";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -21,7 +22,8 @@ function formatCents(cents: number) {
 }
 
 export default async function PackagesPage() {
-  const { tenantId } = await getTenantContext();
+  const { tenantId, role } = await getTenantContext();
+  requireCapability(role, "finance");
   const supabase = await createClient();
 
   const [{ data: packages }, { data: patients }, { data: serviceTypes }] = await Promise.all([
@@ -62,8 +64,10 @@ export default async function PackagesPage() {
 
         <p className="text-xs text-muted-soft">
           Pra quando o paciente paga várias sessões de uma vez — registra o pacote já como pago
-          (emite recibo) e acompanha quantas sessões ainda restam. Dar baixa numa sessão é manual,
-          não ligado automaticamente ao agendamento na agenda.
+          (emite recibo) e acompanha quantas sessões ainda restam. A baixa é automática: ao marcar
+          uma consulta do paciente como &quot;concluída&quot; na agenda, a sessão sai do pacote ativo mais
+          antigo (e a cobrança avulsa daquela consulta é cancelada). &quot;Registrar sessão usada&quot; fica
+          para atendimentos fora da agenda.
         </p>
 
         {(packages ?? []).length === 0 ? (

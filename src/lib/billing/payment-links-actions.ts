@@ -85,17 +85,27 @@ export async function confirmPaymentLinkReceived(formData: FormData) {
     .eq("id", id)
     .single();
 
-  if (link && link.status === "open") {
-    // Só revalida invoices que ainda estão pendentes — uma cobrança do
-    // link pode ter sido cancelada depois de criado (ex: consulta
-    // desmarcada), e confirmar o link não deve reviver essa cobrança.
-    await supabase
-      .from("invoices")
-      .update({ status: "paid", method, paid_at: new Date().toISOString() })
-      .eq("status", "pending")
-      .in("id", link.invoice_ids);
-    await supabase.from("payment_links").update({ status: "paid" }).eq("id", id);
+  if (!link || link.status !== "open") {
+    redirect(
+      `/dashboard/financeiro?view=links&error=${encodeURIComponent("Esse link não está mais aberto.")}`,
+    );
   }
+
+  // Só revalida invoices que ainda estão pendentes — uma cobrança do
+  // link pode ter sido cancelada depois de criado (ex: consulta
+  // desmarcada), e confirmar o link não deve reviver essa cobrança.
+  // paid_via_link_id marca QUAIS cobranças este link pagou, pra desfazer
+  // depois só o que foi ele.
+  const paidAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ status: "paid", method, paid_at: paidAt, paid_via_link_id: id })
+    .eq("status", "pending")
+    .in("id", link.invoice_ids);
+  if (error) {
+    redirect(`/dashboard/financeiro?view=links&error=${encodeURIComponent(error.message)}`);
+  }
+  await supabase.from("payment_links").update({ status: "paid", paid_at: paidAt }).eq("id", id).eq("status", "open");
 
   revalidatePath("/dashboard/financeiro");
   redirect(
@@ -114,12 +124,14 @@ export async function undoPaymentLinkConfirmation(formData: FormData) {
     .single();
 
   if (link && link.status === "paid") {
+    // Só reabre as cobranças que ESTE link pagou — as que já estavam
+    // pagas antes (ou foram pagas por outra via) ficam como estão.
     await supabase
       .from("invoices")
-      .update({ status: "pending", method: null, paid_at: null })
+      .update({ status: "pending", method: null, paid_at: null, paid_via_link_id: null })
       .eq("status", "paid")
-      .in("id", link.invoice_ids);
-    await supabase.from("payment_links").update({ status: "open" }).eq("id", id);
+      .eq("paid_via_link_id", id);
+    await supabase.from("payment_links").update({ status: "open", paid_at: null }).eq("id", id);
   }
 
   revalidatePath("/dashboard/financeiro");

@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
+import { can } from "@/lib/permissions";
+import { registerConsent } from "@/lib/clinical/actions";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -16,13 +18,13 @@ export default async function EditPatientPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await getTenantContext();
+  const { role } = await getTenantContext();
   const supabase = await createClient();
   const { id } = await params;
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id, full_name, phone, email, notes")
+    .select("id, full_name, phone, email, notes, consent_at")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -36,12 +38,22 @@ export default async function EditPatientPage({
       <div className="mx-auto max-w-md space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="heading text-2xl">Editar paciente</h1>
-          <Link
-            href={`/dashboard/agenda?patientId=${patient.id}`}
-            className="btn-secondary px-3 py-1.5 text-xs"
-          >
-            Nova consulta
-          </Link>
+          <div className="flex gap-2">
+            {can(role, "clinical") && (
+              <Link
+                href={`/dashboard/pacientes/${patient.id}/prontuario`}
+                className="btn-secondary px-3 py-1.5 text-xs"
+              >
+                Prontuário
+              </Link>
+            )}
+            <Link
+              href={`/dashboard/agenda?patientId=${patient.id}`}
+              className="btn-secondary px-3 py-1.5 text-xs"
+            >
+              Nova consulta
+            </Link>
+          </div>
         </div>
 
         <Suspense fallback={null}>
@@ -89,6 +101,26 @@ export default async function EditPatientPage({
           </div>
           <SubmitButton pendingText="Salvando...">Salvar alterações</SubmitButton>
         </form>
+
+        {patient.consent_at ? (
+          <p className="text-xs text-muted-soft">
+            Consentimento (LGPD) registrado em{" "}
+            {new Date(patient.consent_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}.
+          </p>
+        ) : (
+          <form action={registerConsent} className="card space-y-2 p-4">
+            <input type="hidden" name="patientId" value={patient.id} />
+            <p className="text-sm font-medium text-ink">Consentimento (LGPD)</p>
+            <label className="flex items-start gap-2 text-xs text-muted">
+              <input type="checkbox" name="confirm" className="mt-0.5" />
+              O paciente foi informado sobre o tratamento dos seus dados de saúde e concordou com o
+              registro.
+            </label>
+            <SubmitButton pendingText="Registrando..." className="btn-secondary px-3 py-1.5 text-xs">
+              Registrar consentimento
+            </SubmitButton>
+          </form>
+        )}
 
         <form action={deletePatient}>
           <input type="hidden" name="id" value={patient.id} />

@@ -41,3 +41,7 @@ export function buildReminder24h(startsAt: Date, pending: boolean) {
 
   return `Lembrete: você tem consulta amanhã, ${when}.`;
 }
+
+export function buildFollowup(clinicName: string, npsUrl: string) {
+  return `Obrigado por ter vindo à ${clinicName}! Como foi seu atendimento? Leva 10 segundos: ${npsUrl}`;
+}

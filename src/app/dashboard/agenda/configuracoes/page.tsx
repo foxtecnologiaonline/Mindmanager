@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
+import { requireCapability } from "@/lib/permissions";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { WhatsappConnection } from "@/components/whatsapp-connection";
@@ -28,6 +29,7 @@ const WEEKDAYS = [
 
 export default async function AgendaConfigPage() {
   const { tenantId, role, logoUrl } = await getTenantContext();
+  requireCapability(role, "settings");
   const supabase = await createClient();
 
   const { data: tenant } = await supabase

@@ -7,7 +7,7 @@ import { DashboardNav } from "@/components/dashboard-nav";
 // seus próprios links de volta/avançar (Pacientes, Configurar, Voltar),
 // cada uma de um jeito ligeiramente diferente.
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { tenantId, tenantName, logoUrl, fullName } = await getTenantContext();
+  const { tenantId, tenantName, logoUrl, fullName, role } = await getTenantContext();
   const supabase = await createClient();
 
   // Lista leve (nome + telefone) pra busca global na sidebar — filtrada
@@ -25,6 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         tenantName={tenantName}
         logoUrl={logoUrl}
         fullName={fullName}
+        role={role}
         patients={(patients ?? []).map((p) => ({ id: p.id, fullName: p.full_name, phone: p.phone }))}
       />
       <div className="flex-1 pb-16 md:pb-0">{children}</div>

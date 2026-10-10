@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
+import { requireCapability } from "@/lib/permissions";
 import { PrintButton } from "@/components/print-button";
 
 export const metadata: Metadata = { title: "Recibo" };
@@ -18,7 +19,8 @@ function formatCents(cents: number) {
 }
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
-  const { tenantName } = await getTenantContext();
+  const { tenantName, role } = await getTenantContext();
+  requireCapability(role, "finance");
   const supabase = await createClient();
   const { id } = await params;
 
@@ -67,7 +69,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
               <div className="flex justify-between border-b border-border pb-2">
                 <dt className="text-muted-soft">Data da consulta</dt>
                 <dd className="font-medium text-ink">
-                  {new Date(appointment.starts_at).toLocaleDateString("pt-BR")}
+                  {new Date(appointment.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                 </dd>
               </div>
             )}
@@ -80,7 +82,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             <div className="flex justify-between border-b border-border pb-2">
               <dt className="text-muted-soft">Pago em</dt>
               <dd className="font-medium text-ink">
-                {invoice.paid_at ? new Date(invoice.paid_at).toLocaleDateString("pt-BR") : "—"}
+                {invoice.paid_at ? new Date(invoice.paid_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "—"}
               </dd>
             </div>
             <div className="flex justify-between pt-1 text-base">
@@ -94,9 +96,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
 
-        <PrintButton className="btn-secondary mx-auto block print:hidden">
-          Imprimir / salvar PDF
-        </PrintButton>
+        <div className="flex justify-center gap-3 print:hidden">
+          <a href={`/dashboard/financeiro/${invoice.id}/recibo/pdf`} className="btn-primary">
+            Baixar PDF
+          </a>
+          <PrintButton className="btn-secondary">Imprimir</PrintButton>
+        </div>
       </div>
     </main>
   );

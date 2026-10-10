@@ -13,6 +13,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Upload de logo (2 MB) e anexos do prontuário (10 MB) passam por server
+  // actions; o padrão do Next é 1 MB.
+  experimental: {
+    serverActions: { bodySizeLimit: "11mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

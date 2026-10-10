@@ -10,6 +10,7 @@ import { PatientPicker } from "@/components/patient-picker";
 import {
   cancelAppointment,
   confirmAppointmentManually,
+  markAppointmentOutcome,
   createManualAppointment,
   restoreAppointmentStatus,
 } from "@/lib/scheduling/actions";
@@ -25,6 +26,11 @@ import {
 } from "@/lib/scheduling/dates";
 
 export const metadata: Metadata = { title: "Agenda" };
+
+// Relógio do servidor no momento do request (a página é sempre dinâmica).
+function currentTimeMs() {
+  return Date.now();
+}
 
 // Instanciado uma vez: criar um Intl.DateTimeFormat por chamada pesa
 // quando a grade tem muitos agendamentos (cada bloco chama isso 2x).
@@ -211,7 +217,7 @@ function AgendaHeader({
 }: {
   view: View;
   date: string;
-  undoAppointment?: { id: string; status: string };
+  undoAppointment?: { id: string; status: string; from?: string };
 }) {
   return (
     <>
@@ -225,7 +231,12 @@ function AgendaHeader({
             undoAppointment
               ? {
                   action: restoreAppointmentStatus,
-                  fields: { id: undoAppointment.id, status: undoAppointment.status, date },
+                  fields: {
+                    id: undoAppointment.id,
+                    status: undoAppointment.status,
+                    from: undoAppointment.from ?? "cancelled",
+                    date,
+                  },
                   label: "Desfazer",
                 }
               : undefined
@@ -248,6 +259,7 @@ export default async function AgendaPage({
     patientId?: string;
     undoApptId?: string;
     undoStatus?: string;
+    undoFrom?: string;
   }>;
 }) {
   const {
@@ -258,8 +270,10 @@ export default async function AgendaPage({
     patientId,
     undoApptId,
     undoStatus,
+    undoFrom,
   } = await searchParams;
   const view = resolveView(viewParam);
+  const nowMs = currentTimeMs();
   const date = isValidDateStr(dateParam) ? dateParam : todayBR();
 
   const { tenantId } = await getTenantContext();
@@ -599,7 +613,9 @@ export default async function AgendaPage({
         <AgendaHeader
           view={view}
           date={date}
-          undoAppointment={undoApptId ? { id: undoApptId, status: undoStatus ?? "pending" } : undefined}
+          undoAppointment={
+            undoApptId ? { id: undoApptId, status: undoStatus ?? "pending", from: undoFrom } : undefined
+          }
         />
 
         <div className="lg:flex lg:items-start lg:gap-6">
@@ -749,6 +765,33 @@ export default async function AgendaPage({
                                     </SubmitButton>
                                   </form>
                                 )}
+                                {(appt.status === "pending" || appt.status === "confirmed") &&
+                                  new Date(appt.starts_at).getTime() <= nowMs && (
+                                    <>
+                                      <form action={markAppointmentOutcome}>
+                                        <input type="hidden" name="id" value={appt.id} />
+                                        <input type="hidden" name="outcome" value="completed" />
+                                        <input type="hidden" name="date" value={date} />
+                                        <SubmitButton
+                                          pendingText="..."
+                                          className="font-medium text-accent hover:text-accent-dark"
+                                        >
+                                          concluir
+                                        </SubmitButton>
+                                      </form>
+                                      <form action={markAppointmentOutcome}>
+                                        <input type="hidden" name="id" value={appt.id} />
+                                        <input type="hidden" name="outcome" value="no_show" />
+                                        <input type="hidden" name="date" value={date} />
+                                        <SubmitButton
+                                          pendingText="..."
+                                          className="font-medium text-muted hover:text-ink"
+                                        >
+                                          faltou
+                                        </SubmitButton>
+                                      </form>
+                                    </>
+                                  )}
                                 {(appt.status === "pending" || appt.status === "confirmed") && (
                                   <form action={cancelAppointment}>
                                     <input type="hidden" name="id" value={appt.id} />

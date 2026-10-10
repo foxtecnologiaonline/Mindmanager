@@ -16,6 +16,20 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
   pode usar o número compartilhado da plataforma ou conectar o próprio
   número via ZapScript.
 
+## Scripts
+
+```bash
+npm run dev         # desenvolvimento
+npm run lint        # ESLint
+npm test            # testes unitários (Vitest)
+npm run build       # build de produção
+npm run test:e2e    # smoke E2E (Playwright; precisa de `npm run build` antes)
+./supabase/tests/run.sh   # aplica TODAS as migrations num Postgres limpo + cenários de RLS
+```
+
+O CI (`.github/workflows/ci.yml`) roda lint, testes, build, E2E e as
+migrations a cada push/PR.
+
 ## Setup local
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (ou rode
@@ -25,9 +39,9 @@ Stack: Next.js 16 (App Router, TS, Tailwind) + Supabase (Auth/Postgres/RLS).
    variáveis de Twilio/cron são opcionais (ver comentários no arquivo).
 3. Aplique as migrations em `supabase/migrations/` **em ordem** (SQL
    Editor do painel Supabase, ou `supabase db push` com a CLI):
-   `0001_foundation.sql` → `0002_scheduling.sql` → `0003_booking_hardening.sql`
-   → `0004_patient_confirmation.sql` → `0005_perf_rate_limit_branding.sql`
-   → `0006_own_whatsapp_number.sql` → `0007_auto_tenant_on_signup.sql`.
+   todos os arquivos `0001_…` até `0018_…` na ordem numérica. **Aplique as
+   migrations antes de publicar o código que depende delas** (equipe/papéis
+   em `0016`, prontuário em `0017`, baixa de pacote/NPS/lembretes em `0018`).
 4. Instale dependências e rode:
 
    ```bash
@@ -159,6 +173,45 @@ self-service como no ZapScript (que é produto da própria plataforma).
   sem cookies (`src/lib/supabase/public.ts`) para poder cachear por 60s
   (`revalidate`) — evita bater no banco a cada visita.
 
+## Equipe e papéis (0016)
+
+- **Administrador**: tudo. **Profissional**: agenda, pacientes, prontuário.
+  **Recepção**: agenda, pacientes, financeiro (sem prontuário). Aplicado no
+  banco (RLS), não só na interface.
+- `/dashboard/equipe`: o admin cria um convite (e-mail + papel) e copia o
+  link `/convite/<token>` — vale 7 dias, uso único e só com o e-mail
+  informado. O sistema **não envia** o e-mail do convite.
+
+## Prontuário, anexos e auditoria (0017)
+
+- `/dashboard/pacientes/[id]/prontuario`: evolução SOAP, rascunho →
+  assinatura, adendos, anexos (PDF/PNG/JPG/WEBP, 10 MB, bucket privado) e
+  trilha de acessos (admin). Exige consentimento LGPD registrado.
+- Evolução assinada é **imutável** no banco (nem o admin altera/apaga). A
+  "assinatura" é um carimbo de integridade (SHA-256 + autor + instante) —
+  **não** é assinatura digital ICP-Brasil.
+- A trilha de auditoria (`audit_log`) só aceita inserção. Leituras são
+  registradas pelo app; não há como interceptar `SELECT` no banco.
+
+## Lembretes, pós-consulta e NPS (0018)
+
+- `/api/cron/reminders` envia o lembrete de 24h e, depois da consulta
+  marcada como **concluída** na agenda, a mensagem com o link de avaliação
+  (`/nps/<token>`, nota 0–10). Idempotente, com até 3 tentativas por envio.
+- Vercel Cron (plano gratuito) roda 1x/dia (`vercel.json`). Para rodar de
+  hora em hora configure no GitHub `CRON_SECRET` (secret) e `SITE_URL`
+  (variable) — `.github/workflows/reminders.yml`.
+- Concluir a consulta baixa uma sessão do pacote ativo do paciente.
+
+## Operação
+
+- `GET /api/health` (app + Supabase Auth). O workflow `uptime.yml` chama a
+  cada 15 min quando a variável `SITE_URL` está definida.
+- Erros do servidor saem como JSON estruturado nos logs da Vercel
+  (`src/lib/logger.ts`, `src/instrumentation.ts`). Para Sentry/Datadog,
+  use um Log Drain da Vercel ou instale o SDK — requer DSN/conta.
+- CSP com nonce por request em `src/proxy.ts` (páginas dinâmicas).
+
 ## Estrutura relevante
 
 ```
@@ -171,6 +224,7 @@ src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
 src/lib/integrations/     conexão de WhatsApp próprio por tenant (ZapScript)
-supabase/migrations/      schema SQL (0001 fundação … 0007 tenant automático)
+supabase/migrations/      schema SQL (0001 fundação … 0018 pacotes/NPS)
+supabase/tests/           shim do Supabase + cenários de RLS (run.sh)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```

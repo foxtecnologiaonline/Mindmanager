@@ -10,15 +10,20 @@ export function SubmitButton({
   children,
   pendingText,
   className = "btn-primary w-full",
+  name,
+  value,
 }: {
   children: React.ReactNode;
   pendingText?: string;
   className?: string;
+  // Para formulários com mais de um botão de envio (ex: "salvar rascunho" x "assinar").
+  name?: string;
+  value?: string;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <button type="submit" name={name} value={value} disabled={pending} className={className}>
       {pending ? pendingText ?? "Enviando..." : children}
     </button>
   );

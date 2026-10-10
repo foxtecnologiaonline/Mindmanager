@@ -5,16 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/lib/actions";
 import { GlobalSearch } from "@/components/global-search";
+import { can, type Capability } from "@/lib/permissions";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: "home" as const },
-  { href: "/dashboard/agenda", label: "Agenda", icon: "calendar" as const },
-  { href: "/dashboard/pacientes", label: "Pacientes", icon: "users" as const },
-  { href: "/dashboard/financeiro", label: "Financeiro", icon: "cash" as const },
-  { href: "/dashboard/agenda/configuracoes", label: "Configurações", icon: "settings" as const },
+type NavItem = { href: string; label: string; icon: "home" | "calendar" | "users" | "cash" | "team" | "settings"; cap?: Capability };
+
+const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: "home" },
+  { href: "/dashboard/agenda", label: "Agenda", icon: "calendar" },
+  { href: "/dashboard/pacientes", label: "Pacientes", icon: "users" },
+  { href: "/dashboard/financeiro", label: "Financeiro", icon: "cash", cap: "finance" },
+  { href: "/dashboard/equipe", label: "Equipe", icon: "team", cap: "team" },
+  { href: "/dashboard/agenda/configuracoes", label: "Configurações", icon: "settings", cap: "settings" },
 ];
 
-type IconName = (typeof NAV_ITEMS)[number]["icon"] | "logout";
+type IconName = NavItem["icon"] | "logout";
 
 // Ícones inline (sem lib externa, consistente com o resto do projeto):
 // traço simples em currentColor, herdam a cor do item ativo/inativo.
@@ -60,6 +64,14 @@ function NavIcon({ name, className }: { name: IconName; className?: string }) {
           <path d="M12.5 5.3c.3-.1.6-.1 1-.1 2 0 3.6 1.2 3.9 3" />
         </svg>
       );
+    case "team":
+      return (
+        <svg {...common}>
+          <circle cx="10" cy="6.5" r="2.5" />
+          <path d="M5 16c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5" />
+          <path d="M3 9.5h2M15 9.5h2" />
+        </svg>
+      );
     case "settings":
       return (
         <svg {...common}>
@@ -80,11 +92,11 @@ function NavIcon({ name, className }: { name: IconName; className?: string }) {
 
 // Longest-match: "/dashboard/agenda/configuracoes" não deve acender também
 // "Agenda" (prefixo dela), e "/dashboard" só vale na raiz.
-function isActive(pathname: string, href: string) {
+function isActive(items: NavItem[], pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
   const matchesThis = pathname === href || pathname.startsWith(`${href}/`);
   if (!matchesThis) return false;
-  return !NAV_ITEMS.some(
+  return !items.some(
     (other) =>
       other.href.length > href.length &&
       other.href.startsWith(`${href}/`) &&
@@ -92,11 +104,11 @@ function isActive(pathname: string, href: string) {
   );
 }
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
   return (
     <>
-      {NAV_ITEMS.map((item) => {
-        const active = isActive(pathname, item.href);
+      {items.map((item) => {
+        const active = isActive(items, pathname, item.href);
         return (
           <Link
             key={item.href}
@@ -120,14 +132,17 @@ export function DashboardNav({
   tenantName,
   logoUrl,
   fullName,
+  role,
   patients,
 }: {
   tenantName: string | null;
   logoUrl: string | null;
   fullName: string;
+  role: string;
   patients: { id: string; fullName: string; phone: string }[];
 }) {
   const pathname = usePathname();
+  const items = NAV_ITEMS.filter((item) => !item.cap || can(role, item.cap));
 
   return (
     <>
@@ -155,7 +170,7 @@ export function DashboardNav({
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 p-3">
-          <NavLinks pathname={pathname} />
+          <NavLinks items={items} pathname={pathname} />
         </nav>
 
         <div className="border-t border-border p-3">
@@ -173,8 +188,8 @@ export function DashboardNav({
 
       {/* Mobile: tab bar fixa no rodapé */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface md:hidden">
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(pathname, item.href);
+        {items.map((item) => {
+          const active = isActive(items, pathname, item.href);
           return (
             <Link
               key={item.href}

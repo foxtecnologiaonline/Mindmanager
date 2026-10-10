@@ -55,3 +55,12 @@ update patient_attachments set file_name = 'troca.pdf';
 delete from patient_attachments;
 reset role;
 select 'auditoria final', action, entity from audit_log order by id;
+
+\echo '--- verify_patient_notes e consentimento'
+set role authenticated; set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000001';
+select 'integridade', intact from verify_patient_notes('11111111-0000-0000-0000-000000000001');
+update patients set consent_at = now(), consent_recorded_by = auth.uid() where id = '11111111-0000-0000-0000-000000000001';
+select log_access('record.view','patient','11111111-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001');
+reset role;
+select 'visualizações (dedupe 5 min => 1)', count(*) from audit_log where action='record.view';
+select 'consent auditado', count(*) from audit_log where action='patient.consent';

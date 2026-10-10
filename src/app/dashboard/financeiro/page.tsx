@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
+import { requireCapability } from "@/lib/permissions";
 import { siteUrl } from "@/lib/site-url";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
@@ -67,6 +68,12 @@ function ViewTabs({ view }: { view: View }) {
         </Link>
       ))}
       <Link
+        href="/dashboard/financeiro/recebimentos"
+        className="rounded-md px-3 py-1.5 font-medium text-muted hover:text-ink"
+      >
+        Recebimentos
+      </Link>
+      <Link
         href="/dashboard/financeiro/pacotes"
         className="rounded-md px-3 py-1.5 font-medium text-muted hover:text-ink"
       >
@@ -108,7 +115,8 @@ export default async function FinanceiroPage({
     linkCreated?: string;
   }>;
 }) {
-  const { tenantId } = await getTenantContext();
+  const { tenantId, role } = await getTenantContext();
+  requireCapability(role, "finance");
   const { status: statusParam, view: viewParam, undoInvoiceId, undoLinkId, linkCreated } =
     await searchParams;
   const status = resolveStatus(statusParam);

@@ -52,9 +52,29 @@ Revisão do código inteiro; correções em `0015_security_hardening.sql`
   (pago não é cancelado/pago de novo), concorrência otimista nas sessões
   do pacote, DDI 55 no WhatsApp, JSON inválido no webhook, cabeçalhos de
   segurança (sem CSP), logout no mobile, Next 16.4.0 (advisories altos).
-- **Limite conhecido**: desfazer a confirmação de um link de pagamento
-  reabre todas as cobranças pagas do link, inclusive as que já estavam
-  pagas antes da confirmação (sem coluna que diga quem pagou o quê).
+- ~~Limite conhecido do desfazer de link~~ resolvido em 2026-10-10
+  (`paid_via_link_id`, migration 0018).
+
+## Rodada de melhorias (2026-10-10)
+Executadas as 10 sugestões da auditoria (migrations 0016–0018 + app):
+1. **CSP com nonce** (`src/proxy.ts`); `style-src` mantém `unsafe-inline`.
+2. **Equipe e papéis** (0016): convite por link, papéis aplicados via RLS.
+   Fica de fora: convidar quem já tem conta; envio automático do convite.
+3. **Rate limit** em login/cadastro/recuperação de senha (por IP e por e-mail).
+4. **Baixa automática de pacote** ao concluir a consulta (0018); botões
+   "concluir"/"faltou" na agenda.
+5. **Link de pagamento rastreia o que pagou** (`invoices.paid_via_link_id`) —
+   resolve o limite do desfazer; histórico em `/dashboard/financeiro/recebimentos`.
+6. **Testes**: Vitest (unitários), Playwright (smoke), cenários SQL de RLS,
+   CI no GitHub Actions. Fluxos autenticados completos seguem manuais.
+7. **Prontuário SOAP + anexos + auditoria + consentimento LGPD** (0017).
+   Assinatura = carimbo SHA-256, não ICP-Brasil.
+8. **Lembretes confiáveis** (tentativas, claim atômico) + **pós-consulta e
+   NPS** (0018). Cron horário via GitHub Actions (Vercel gratuito = diário).
+9. **Observabilidade**: `/api/health`, logs JSON, `onRequestError`, monitor
+   de uptime. Sentry não instalado (precisa de conta/DSN).
+10. **Relatório mensal em CSV/impressão e recibo em PDF**. Gateway de
+    pagamento **segue fora**, conforme decisão de 2026-10-09.
 
 ## Fora de escopo (cortado, não esquecido)
 - TISS / faturamento de convênio
@@ -189,11 +209,8 @@ sistema.
 Lembrete pós-consulta · NPS
 
 ### Adiado para próxima versão (decisão explícita, não esquecimento)
-- **Convite de equipe**: hoje só existe o usuário que fez o cadastro
-  inicial (sempre `admin`, via trigger `handle_new_user`). Não há como
-  adicionar profissional/recepção ao mesmo tenant. Trava clínicas com
-  mais de 1 profissional, mesmo a agenda já sendo multi-profissional
-  por design. Decisão do usuário em 2026-10-02: fica para depois.
+- ~~Convite de equipe~~ implementado em 2026-10-10 (ver "Rodada de
+  melhorias"). Adiado em 2026-10-02 por decisão do usuário.
 - **Painel de chat de IA** (lado direito no desktop / embaixo no
   mobile): proposto pelo usuário em 2026-10-08 (assistente pra equipe
   e/ou paciente, dentro do dashboard e/ou da página pública de

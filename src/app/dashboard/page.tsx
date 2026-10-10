@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Fragment } from "react";
+import { Fragment, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
+import { can } from "@/lib/permissions";
+import { Toast } from "@/components/toast";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -18,8 +20,29 @@ function todayRangeBR() {
   return { start, end };
 }
 
+// NPS dos últimos 90 dias (só admin; tabela da migration 0018 — se ainda
+// não existir, a consulta falha e o card simplesmente não aparece).
+async function loadNps(supabase: Awaited<ReturnType<typeof createClient>>, tenantId: string) {
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: responses } = await supabase
+    .from("nps_responses")
+    .select("score")
+    .eq("tenant_id", tenantId)
+    .gte("created_at", since);
+
+  if (!responses || responses.length === 0) return null;
+
+  const promoters = responses.filter((r) => r.score >= 9).length;
+  const detractors = responses.filter((r) => r.score <= 6).length;
+  return {
+    score: Math.round(((promoters - detractors) / responses.length) * 100),
+    count: responses.length,
+    avg: responses.reduce((sum, r) => sum + r.score, 0) / responses.length,
+  };
+}
+
 export default async function DashboardPage() {
-  const { tenantId, tenantName, tenantSlug, logoUrl } = await getTenantContext();
+  const { tenantId, tenantName, tenantSlug, logoUrl, role } = await getTenantContext();
   const supabase = await createClient();
 
   const { start, end } = todayRangeBR();
@@ -60,6 +83,8 @@ export default async function DashboardPage() {
       .is("deleted_at", null),
   ]);
 
+  const nps = can(role, "audit") ? await loadNps(supabase, tenantId) : null;
+
   const hasServiceType = (serviceTypeCount ?? 0) > 0;
   const hasWorkingHour = (workingHourCount ?? 0) > 0;
   const hasPatient = (patientCount ?? 0) > 0;
@@ -84,6 +109,9 @@ export default async function DashboardPage() {
   return (
     <main className="flex-1 p-6">
       <div className="mx-auto max-w-4xl space-y-6">
+        <Suspense fallback={null}>
+          <Toast />
+        </Suspense>
         <div
           className="flex flex-wrap items-center gap-4 rounded-2xl p-5"
           style={{
@@ -157,6 +185,21 @@ export default async function DashboardPage() {
                   )}
                 </Fragment>
               ))}
+            </div>
+          </div>
+        )}
+
+        {nps && (
+          <div className="card flex flex-wrap items-center gap-6 p-4">
+            <div>
+              <p className="text-3xl font-semibold text-ink">{nps.score}</p>
+              <p className="text-xs text-muted-soft">NPS · últimos 90 dias</p>
+            </div>
+            <div className="text-sm text-muted">
+              <p>
+                Nota média <strong className="text-ink">{nps.avg.toFixed(1)}</strong> de 10
+              </p>
+              <p>{nps.count} resposta(s) dos pacientes após a consulta</p>
             </div>
           </div>
         )}

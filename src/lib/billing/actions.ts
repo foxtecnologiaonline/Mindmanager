@@ -95,7 +95,7 @@ export async function undoInvoicePayment(formData: FormData) {
 
   await supabase
     .from("invoices")
-    .update({ status: "pending", method: null, paid_at: null })
+    .update({ status: "pending", method: null, paid_at: null, paid_via_link_id: null })
     .eq("id", id)
     .eq("status", "paid");
 

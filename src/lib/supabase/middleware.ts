@@ -11,7 +11,7 @@ const AUTH_PATHS = ["/login", "/signup", "/auth", "/esqueci-senha"];
 // vez de depender de cookie de usuário. Prefixos "startsWith" — nunca
 // "/" aqui, ou todo o resto do app (inclusive /dashboard) passaria a
 // ser público.
-const ALWAYS_PUBLIC_PREFIXES = ["/agendar", "/pagar", "/api"];
+const ALWAYS_PUBLIC_PREFIXES = ["/agendar", "/pagar", "/convite", "/nps", "/api"];
 // Match exato: essas rotas não têm sub-rotas e "/" via startsWith casaria
 // com qualquer caminho.
 const ALWAYS_PUBLIC_EXACT = ["/"];

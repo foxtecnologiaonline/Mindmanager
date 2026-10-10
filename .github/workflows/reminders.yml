@@ -1,0 +1,30 @@
+name: Lembretes (cron horário)
+
+# O Vercel Cron do plano gratuito só roda 1x/dia (vercel.json). Este
+# workflow chama o mesmo endpoint de hora em hora — a rota é idempotente
+# (cada mensagem é "reivindicada" no banco), então rodar os dois é seguro.
+#
+# Configure em Settings > Secrets and variables > Actions:
+#   - Secret   CRON_SECRET  (o mesmo valor da env CRON_SECRET na Vercel)
+#   - Variable SITE_URL     (ex: https://mindmanager.vercel.app)
+# Sem isso o job só avisa e sai.
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar /api/cron/reminders
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SITE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::warning::Defina SITE_URL (variable) e CRON_SECRET (secret) para ativar."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 120 --retry 2 --retry-delay 10 \
+            -H "Authorization: Bearer $CRON_SECRET" "$SITE_URL/api/cron/reminders"
