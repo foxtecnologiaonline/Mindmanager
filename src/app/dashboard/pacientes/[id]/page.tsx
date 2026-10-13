@@ -47,6 +47,14 @@ export default async function EditPatientPage({
                 Prontuário
               </Link>
             )}
+            {can(role, "finance") && (
+              <Link
+                href={`/dashboard/pacientes/${patient.id}/financeiro`}
+                className="btn-secondary px-3 py-1.5 text-xs"
+              >
+                Financeiro
+              </Link>
+            )}
             <Link
               href={`/dashboard/agenda?patientId=${patient.id}`}
               className="btn-secondary px-3 py-1.5 text-xs"

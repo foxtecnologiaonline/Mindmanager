@@ -185,9 +185,16 @@ export default async function ProntuarioPage({ params }: { params: Promise<{ id:
             <h1 className="heading text-2xl">Prontuário</h1>
             <p className="text-sm text-muted">{patient.full_name}</p>
           </div>
-          <Link href={`/dashboard/pacientes/${patientId}`} className="link-accent text-sm">
-            Cadastro do paciente
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href={`/dashboard/pacientes/${patientId}`} className="link-accent text-sm">
+              Cadastro do paciente
+            </Link>
+            {can(role, "finance") && (
+              <Link href={`/dashboard/pacientes/${patientId}/financeiro`} className="link-accent text-sm">
+                Financeiro
+              </Link>
+            )}
+          </div>
         </div>
 
         <Suspense fallback={null}>

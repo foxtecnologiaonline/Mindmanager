@@ -39,12 +39,13 @@ migrations a cada push/PR.
    variáveis de Twilio/cron são opcionais (ver comentários no arquivo).
 3. Aplique as migrations em `supabase/migrations/` **em ordem** (SQL
    Editor do painel Supabase, ou `supabase db push` com a CLI):
-   todos os arquivos `0001_…` até `0020_…` na ordem numérica. **Aplique as
+   todos os arquivos `0001_…` até `0021_…` na ordem numérica. **Aplique as
    migrations antes de publicar o código que depende delas** (equipe/papéis
    em `0016`, prontuário em `0017`, baixa de pacote/NPS/lembretes em `0018`,
    consistência do financeiro em `0019`, recebimento configurável + envio
-   automático em `0020`). Atalho: `supabase/pending/aplicar_0013_a_0020.sql`
-   junta 0013–0020 e é re-executável (gerado por `supabase/tests/build_pending.py`).
+   automático em `0020`, perfil de cobrança por paciente em `0021`). Atalho:
+   `supabase/pending/aplicar_0020_a_0021.sql` junta 0020–0021 e é re-executável
+   (gerado por `supabase/tests/build_pending.py`).
 4. Instale dependências e rode:
 
    ```bash
@@ -221,6 +222,22 @@ self-service como no ZapScript (que é produto da própria plataforma).
   "Gerar link" manual (acerto) também manda sozinho; "copiar link"
   continua disponível de qualquer jeito.
 
+## Financeiro por paciente (0021)
+
+- Aba "Financeiro" dentro de cada paciente (`/dashboard/pacientes/[id]/financeiro`,
+  admin + recepção): forma de recebimento preferida, recorrência
+  (classificação informativa — avulso/pacote/mensal, **não** gera cobrança
+  automática), resumo (pendente/pago/pacotes ativos), histórico de
+  cobranças e botão para baixar a "fatura" em PDF (todas as cobranças do
+  paciente, com totais).
+- Guardado em `patient_billing_profiles`, tabela própria (não colunas em
+  `patients`) porque GRANT/REVOKE de coluna no Postgres não distingue
+  papel de app (profissional vs. recepção) — só RLS por linha faz isso,
+  e dado financeiro tem que ficar fora do alcance do profissional.
+- "Conciliação automática": verificação de consistência entre
+  `invoices.paid_via_link_id` e o status do link — não é integração
+  bancária (não há gateway de pagamento no projeto).
+
 ## Operação
 
 - `GET /api/health` (app + Supabase Auth). O workflow `uptime.yml` chama a
@@ -242,7 +259,7 @@ src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
 src/lib/integrations/     conexão de WhatsApp próprio por tenant (ZapScript)
-supabase/migrations/      schema SQL (0001 fundação … 0020 recebimento/envio automático)
+supabase/migrations/      schema SQL (0001 fundação … 0020 recebimento/envio automático, 0021 financeiro por paciente)
 supabase/tests/           shim do Supabase + cenários de RLS (run.sh)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```

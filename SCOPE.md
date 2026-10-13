@@ -224,6 +224,36 @@ clínica que já tem Pix configurado — migração nenhuma liga sozinha o
 envio automático de mensagem pro paciente; é um clique em
 Configurações.
 
+**Financeiro por paciente implementado em 2026-10-13** (migration
+0021): aba "Financeiro" em cada paciente
+(`/dashboard/pacientes/[id]/financeiro`, admin + recepção) — forma de
+recebimento preferida, recorrência, resumo (pendente/pago/pacotes
+ativos), histórico de cobranças e fatura em PDF (todas as cobranças do
+paciente). Guardado em `patient_billing_profiles`, tabela nova (não
+colunas em `patients`): GRANT/REVOKE de coluna no Postgres só distingue
+*role* do Postgres (anon/authenticated/service_role), não *papel* do
+app — profissional e recepção são o mesmo role `authenticated`, então a
+única forma de esconder dado financeiro do profissional é RLS por linha
+numa tabela própria (mesmo padrão de `invoices`/`session_packages` e de
+`clinical_notes`).
+**Decisões de escopo, para não serem lidas como esquecimento**:
+- "Recorrência" é só uma classificação informativa (avulso/pacote/
+  mensal) pra organizar a tela — **não existe geração automática de
+  cobrança recorrente/mensal**. Quem precisa de cobrança mensal de
+  verdade continua lançando a cobrança (avulsa ou por pacote) a cada
+  mês; pacotes de sessão continuam em `session_packages`, com baixa
+  automática já existente desde a migration 0018.
+- "Conciliação automática dos pagamentos" é feita só dentro do app:
+  totais calculados (pendente/pago) + uma verificação de consistência
+  entre `invoices.paid_via_link_id` e o status do link de pagamento
+  (sinaliza se o link foi cancelado/reaberto depois da fatura marcada
+  como paga por ele). **Não é integração bancária nem com gateway de
+  pagamento** — decisão de produto já registrada acima (nenhum
+  processador de pagamento no projeto), não uma limitação nova.
+- a "fatura" é um PDF de extrato (todas as cobranças do paciente +
+  totais), gerado com `pdf-lib` (mesmo padrão do recibo por cobrança da
+  migration 0017/0018) — não é um boleto bancário nem documento fiscal.
+
 ### F4 — Retenção
 Lembrete pós-consulta · NPS
 
