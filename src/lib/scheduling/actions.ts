@@ -318,9 +318,22 @@ export async function markAppointmentOutcome(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("appointments").update({ status: outcome }).eq("id", id);
+  // Trava de concorrência: duas abas/pessoas encerrando a mesma consulta ao
+  // mesmo tempo (uma como "concluída", outra como "faltou") não podem as
+  // duas vencer — só a primeira grava, a segunda vira "não encerra mais"
+  // em vez de deixar o resultado final depender de ordem de chegada (o que
+  // bagunçaria a baixa de pacote/cancelamento de fatura do trigger no banco).
+  const { data: updated, error } = await supabase
+    .from("appointments")
+    .update({ status: outcome })
+    .eq("id", id)
+    .eq("status", before.status)
+    .select("id");
   if (error) {
     redirect(`/dashboard/agenda?error=${encodeURIComponent(error.message)}${dateParam}`);
+  }
+  if (!updated?.length) {
+    redirect(`/dashboard/agenda?error=${encodeURIComponent("Essa consulta já foi alterada por outra ação.")}${dateParam}`);
   }
 
   revalidatePath("/dashboard/agenda");
