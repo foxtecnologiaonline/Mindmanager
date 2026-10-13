@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { parseMethod } from "@/lib/billing/payment-method";
 
 async function requireTenant() {
   const supabase = await createClient();
@@ -76,8 +77,7 @@ export async function createPaymentLink(formData: FormData) {
 export async function confirmPaymentLinkReceived(formData: FormData) {
   const { supabase } = await requireTenant();
   const id = String(formData.get("id"));
-  const methodParam = String(formData.get("method") ?? "pix");
-  const method = ["pix", "card", "cash", "other"].includes(methodParam) ? methodParam : "pix";
+  const method = parseMethod(formData.get("method"), "pix");
 
   const { data: link } = await supabase
     .from("payment_links")

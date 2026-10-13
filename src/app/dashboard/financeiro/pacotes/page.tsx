@@ -8,6 +8,7 @@ import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
+import { formatCents } from "@/lib/billing/money";
 import {
   cancelPackage,
   createPackage,
@@ -16,10 +17,6 @@ import {
 } from "@/lib/billing/packages-actions";
 
 export const metadata: Metadata = { title: "Pacotes de sessão" };
-
-function formatCents(cents: number) {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default async function PackagesPage() {
   const { tenantId, role } = await getTenantContext();

@@ -5,10 +5,7 @@ import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { buildPixPayload } from "@/lib/billing/pix";
 import { CopyLinkButton } from "@/components/copy-link-button";
-
-function formatCents(cents: number) {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { formatCents } from "@/lib/billing/money";
 
 // generateMetadata e o page component abaixo chamam isso com o mesmo
 // id — supabase.rpc() é POST, então o memoization automático de fetch

@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
 import { can } from "@/lib/permissions";
 import { stripDiacritics } from "@/lib/text";
-
-const METHOD_LABEL: Record<string, string> = { pix: "PIX", card: "Cartão", cash: "Dinheiro", other: "Outro" };
+import { methodLabel } from "@/lib/billing/payment-method";
 
 const BR_DATE = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -74,7 +73,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ["Paciente", patient?.full_name ?? "—"],
     ...(service?.name ? ([["Serviço", service.name]] as [string, string][]) : []),
     ...(appt?.starts_at ? ([["Data da consulta", BR_DATE.format(new Date(appt.starts_at))]] as [string, string][]) : []),
-    ["Forma de pagamento", invoice.method ? METHOD_LABEL[invoice.method] ?? invoice.method : "—"],
+    ["Forma de pagamento", methodLabel(invoice.method)],
     ["Pago em", invoice.paid_at ? BR_DATE.format(new Date(invoice.paid_at)) : "—"],
   ];
 

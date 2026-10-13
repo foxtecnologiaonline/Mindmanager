@@ -5,14 +5,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import { normalizePixKey } from "@/lib/billing/pix";
+import { parseMethod } from "@/lib/billing/payment-method";
 
-const METHODS = ["pix", "card", "cash", "other"] as const;
 const MAX_AMOUNT_CENTS = 100_000_000; // R$ 1.000.000,00 — acima disso é erro de digitação
-
-function parseMethod(value: FormDataEntryValue | null, fallback: (typeof METHODS)[number]) {
-  const v = String(value ?? "");
-  return (METHODS as readonly string[]).includes(v) ? v : fallback;
-}
 
 async function requireTenant() {
   const supabase = await createClient();

@@ -7,20 +7,11 @@ import { PrintButton } from "@/components/print-button";
 import { EmptyState } from "@/components/empty-state";
 import { monthLabel, resolveMonth, shiftMonth, currentMonthBR } from "@/lib/billing/period";
 import { fetchReceived, totalsByMethod } from "@/lib/billing/reports";
+import { methodLabel } from "@/lib/billing/payment-method";
+import { formatCents } from "@/lib/billing/money";
+import { BR_DATE_TIME } from "@/lib/billing/format";
 
 export const metadata: Metadata = { title: "Recebimentos" };
-
-const METHOD_LABEL: Record<string, string> = { pix: "PIX", card: "Cartão", cash: "Dinheiro", other: "Outro" };
-
-function formatCents(cents: number) {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-const BR_DATE_TIME = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short",
-  timeStyle: "short",
-  timeZone: "America/Sao_Paulo",
-});
 
 export default async function ReceivedPage({
   searchParams,
@@ -102,7 +93,7 @@ export default async function ReceivedPage({
             {byMethod.map(([method, t]) => (
               <div key={method} className="flex justify-between p-3">
                 <span className="text-ink">
-                  {METHOD_LABEL[method] ?? method} <span className="text-muted-soft">· {t.count}</span>
+                  {methodLabel(method)} <span className="text-muted-soft">· {t.count}</span>
                 </span>
                 <span className="font-medium text-ink">{formatCents(t.cents)}</span>
               </div>
@@ -122,7 +113,7 @@ export default async function ReceivedPage({
                 <div>
                   <p className="font-medium text-ink">{r.patientName}</p>
                   <p className="text-xs text-muted-soft">
-                    {BR_DATE_TIME.format(new Date(r.paid_at))} · {r.method ? METHOD_LABEL[r.method] : "—"}
+                    {BR_DATE_TIME.format(new Date(r.paid_at))} · {methodLabel(r.method)}
                     {r.serviceName && ` · ${r.serviceName}`}
                     {r.paid_via_link_id && " · via link"}
                     {r.package_id && " · pacote"}

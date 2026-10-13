@@ -5,15 +5,9 @@ import { can } from "@/lib/permissions";
 import { resolveMonth } from "@/lib/billing/period";
 import { fetchReceived } from "@/lib/billing/reports";
 import { centsToDecimal, toCsv } from "@/lib/billing/csv";
+import { methodLabel } from "@/lib/billing/payment-method";
 import { logger } from "@/lib/logger";
-
-const METHOD_LABEL: Record<string, string> = { pix: "PIX", card: "Cartão", cash: "Dinheiro", other: "Outro" };
-
-const BR_DATE_TIME = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short",
-  timeStyle: "short",
-  timeZone: "America/Sao_Paulo",
-});
+import { BR_DATE_TIME } from "@/lib/billing/format";
 
 // Exporta os recebimentos do mês em CSV (abre direto no Excel/Sheets).
 export async function GET(request: NextRequest) {
@@ -32,7 +26,7 @@ export async function GET(request: NextRequest) {
         BR_DATE_TIME.format(new Date(r.paid_at)),
         r.patientName,
         r.serviceName ?? "",
-        r.method ? METHOD_LABEL[r.method] ?? r.method : "",
+        methodLabel(r.method),
         centsToDecimal(r.amount_cents),
         r.paid_via_link_id ? "Link de pagamento" : r.package_id ? "Pacote" : "Cobrança",
         r.notes ?? "",

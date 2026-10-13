@@ -6,12 +6,14 @@ import { getTenantContext } from "@/lib/tenant";
 import { requireCapability } from "@/lib/permissions";
 import { currentMonthBR } from "@/lib/billing/period";
 import { sumReceived } from "@/lib/billing/reports";
+import { methodLabel } from "@/lib/billing/payment-method";
 import { siteUrl } from "@/lib/site-url";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { CopyLinkButton } from "@/components/copy-link-button";
+import { formatCents } from "@/lib/billing/money";
 import {
   cancelInvoice,
   createManualInvoice,
@@ -28,13 +30,6 @@ import {
 
 export const metadata: Metadata = { title: "Financeiro" };
 
-const METHOD_LABEL: Record<string, string> = {
-  pix: "PIX",
-  card: "Cartão",
-  cash: "Dinheiro",
-  other: "Outro",
-};
-
 type Status = "pending" | "paid" | "cancelled";
 type View = "list" | "acerto" | "links";
 
@@ -44,10 +39,6 @@ function resolveStatus(value: string | undefined): Status {
 
 function resolveView(value: string | undefined): View {
   return value === "acerto" || value === "links" ? value : "list";
-}
-
-function formatCents(cents: number) {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function ViewTabs({ view }: { view: View }) {
@@ -455,7 +446,7 @@ export default async function FinanceiroPage({
                       {appointment?.starts_at
                         ? new Date(appointment.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
                         : new Date(inv.created_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-                      {inv.status === "paid" && inv.method && ` · ${METHOD_LABEL[inv.method]}`}
+                      {inv.status === "paid" && inv.method && ` · ${methodLabel(inv.method)}`}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">

@@ -4,19 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
 import { requireCapability } from "@/lib/permissions";
 import { PrintButton } from "@/components/print-button";
+import { methodLabel } from "@/lib/billing/payment-method";
+import { formatCents } from "@/lib/billing/money";
 
 export const metadata: Metadata = { title: "Recibo" };
-
-const METHOD_LABEL: Record<string, string> = {
-  pix: "PIX",
-  card: "Cartão",
-  cash: "Dinheiro",
-  other: "Outro",
-};
-
-function formatCents(cents: number) {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const { tenantName, role } = await getTenantContext();
@@ -76,7 +67,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             <div className="flex justify-between border-b border-border pb-2">
               <dt className="text-muted-soft">Forma de pagamento</dt>
               <dd className="font-medium text-ink">
-                {invoice.method ? METHOD_LABEL[invoice.method] : "—"}
+                {methodLabel(invoice.method)}
               </dd>
             </div>
             <div className="flex justify-between border-b border-border pb-2">

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { parseMethod } from "@/lib/billing/payment-method";
 
 async function requireTenant() {
   const supabase = await createClient();
@@ -31,8 +32,7 @@ export async function createPackage(formData: FormData) {
   const sessionsTotal = Number(formData.get("sessionsTotal"));
   const amountReais = String(formData.get("amount") ?? "").replace(",", ".");
   const amountCents = Math.round(Number(amountReais) * 100);
-  const methodParam = String(formData.get("method") ?? "pix");
-  const method = ["pix", "card", "cash", "other"].includes(methodParam) ? methodParam : "pix";
+  const method = parseMethod(formData.get("method"), "pix");
 
   if (
     !patientId ||
