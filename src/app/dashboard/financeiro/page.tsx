@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantContext } from "@/lib/tenant";
 import { requireCapability } from "@/lib/permissions";
+import { currentMonthBR } from "@/lib/billing/period";
+import { sumReceived } from "@/lib/billing/reports";
 import { siteUrl } from "@/lib/site-url";
 import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
@@ -123,32 +125,18 @@ export default async function FinanceiroPage({
   const view = resolveView(viewParam);
   const supabase = await createClient();
 
-  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
-    new Date(),
-  );
-  const monthStart = `${todayStr.slice(0, 7)}-01T00:00:00-03:00`;
-
-  const [{ data: tenant }, { count: pendingCount }, { data: receivedThisMonth }] = await Promise.all([
+  const [{ data: tenant }, { count: pendingCount }, totalReceivedThisMonth] = await Promise.all([
     supabase.from("tenants").select("pix_key, pix_holder_name, pix_city").eq("id", tenantId).single(),
     supabase
       .from("invoices")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("status", "pending"),
-    supabase
-      .from("invoices")
-      .select("amount_cents")
-      .eq("tenant_id", tenantId)
-      .eq("status", "paid")
-      .gte("paid_at", monthStart),
+    sumReceived(supabase, tenantId, currentMonthBR()),
   ]);
   const pixConfigured = Boolean(tenant?.pix_key && tenant?.pix_holder_name && tenant?.pix_city);
 
   const totalPendingCount = pendingCount ?? 0;
-  const totalReceivedThisMonth = (receivedThisMonth ?? []).reduce(
-    (sum, inv) => sum + inv.amount_cents,
-    0,
-  );
 
   const header = (
     <>
@@ -193,7 +181,10 @@ export default async function FinanceiroPage({
         <form action={updatePixSettings} className="mt-4 flex flex-wrap items-end gap-3 text-sm">
           <div className="space-y-1">
             <label className="font-medium text-ink">Chave Pix</label>
-            <input name="pixKey" required defaultValue={tenant?.pix_key ?? ""} className="input" />
+            <input name="pixKey" required maxLength={77} defaultValue={tenant?.pix_key ?? ""} className="input" />
+            <p className="max-w-56 text-[11px] text-muted-soft">
+              E-mail, CPF/CNPJ, chave aleatória ou celular <strong>com +55</strong> (ex: +5511912345678).
+            </p>
           </div>
           <div className="space-y-1">
             <label className="font-medium text-ink">Nome do titular</label>
@@ -268,7 +259,7 @@ export default async function FinanceiroPage({
                       <p className="font-medium text-ink">{patient?.full_name ?? "—"}</p>
                       <p className="text-muted-soft">
                         {link.invoice_ids.length} cobrança(s) ·{" "}
-                        {new Date(link.created_at).toLocaleDateString("pt-BR")} ·{" "}
+                        {new Date(link.created_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} ·{" "}
                         <span
                           className={
                             link.status === "open"
@@ -462,8 +453,8 @@ export default async function FinanceiroPage({
                     <p className="text-muted-soft">
                       {service?.name && `${service.name} · `}
                       {appointment?.starts_at
-                        ? new Date(appointment.starts_at).toLocaleDateString("pt-BR")
-                        : new Date(inv.created_at).toLocaleDateString("pt-BR")}
+                        ? new Date(appointment.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
+                        : new Date(inv.created_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                       {inv.status === "paid" && inv.method && ` · ${METHOD_LABEL[inv.method]}`}
                     </p>
                   </div>

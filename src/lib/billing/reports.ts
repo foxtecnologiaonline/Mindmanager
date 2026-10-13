@@ -76,3 +76,32 @@ export function totalsByMethod(rows: ReceivedRow[]): Map<string, { count: number
   }
   return map;
 }
+
+// Soma recebida no mês (só valores, paginado) — o dashboard financeiro não
+// pode somar uma resposta truncada em 1000 linhas.
+export async function sumReceived(
+  supabase: SupabaseClient,
+  tenantId: string,
+  month: string,
+): Promise<number> {
+  const { start, end } = monthRange(month);
+  let total = 0;
+
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("amount_cents")
+      .eq("tenant_id", tenantId)
+      .eq("status", "paid")
+      .gte("paid_at", start)
+      .lt("paid_at", end)
+      .order("id")
+      .range(from, from + PAGE - 1);
+
+    if (error) throw new Error(error.message);
+    total += (data ?? []).reduce((sum, r) => sum + r.amount_cents, 0);
+    if ((data?.length ?? 0) < PAGE) break;
+  }
+
+  return total;
+}

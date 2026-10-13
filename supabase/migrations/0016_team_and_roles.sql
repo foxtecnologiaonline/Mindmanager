@@ -228,6 +228,7 @@ declare
 begin
   foreach t in array array['invoices', 'session_packages', 'payment_links'] loop
     execute format('drop policy if exists %I on public.%I', t || '_tenant_all', t);
+    execute format('drop policy if exists %I on public.%I', t || '_finance_roles', t);
     execute format(
       'create policy %I on public.%I for all
          using (tenant_id = public.current_tenant_id() and public.current_user_role() in (''admin'', ''recepcao''))

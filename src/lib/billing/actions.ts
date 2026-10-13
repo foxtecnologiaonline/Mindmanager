@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { normalizePixKey } from "@/lib/billing/pix";
 
 const METHODS = ["pix", "card", "cash", "other"] as const;
 const MAX_AMOUNT_CENTS = 100_000_000; // R$ 1.000.000,00 — acima disso é erro de digitação
@@ -121,7 +122,7 @@ export async function cancelInvoice(formData: FormData) {
 export async function updatePixSettings(formData: FormData) {
   const { supabase, tenantId } = await requireTenant();
 
-  const pixKey = String(formData.get("pixKey") ?? "").trim();
+  const pixKey = normalizePixKey(String(formData.get("pixKey") ?? ""));
   const pixHolderName = String(formData.get("pixHolderName") ?? "").trim();
   const pixCity = String(formData.get("pixCity") ?? "").trim();
 

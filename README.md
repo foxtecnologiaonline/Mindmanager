@@ -39,9 +39,11 @@ migrations a cada push/PR.
    variáveis de Twilio/cron são opcionais (ver comentários no arquivo).
 3. Aplique as migrations em `supabase/migrations/` **em ordem** (SQL
    Editor do painel Supabase, ou `supabase db push` com a CLI):
-   todos os arquivos `0001_…` até `0018_…` na ordem numérica. **Aplique as
+   todos os arquivos `0001_…` até `0019_…` na ordem numérica. **Aplique as
    migrations antes de publicar o código que depende delas** (equipe/papéis
-   em `0016`, prontuário em `0017`, baixa de pacote/NPS/lembretes em `0018`).
+   em `0016`, prontuário em `0017`, baixa de pacote/NPS/lembretes em `0018`,
+   consistência do financeiro em `0019`). Atalho: `supabase/pending/aplicar_0013_a_0019.sql`
+   junta 0013–0019 e é re-executável (gerado por `supabase/tests/build_pending.py`).
 4. Instale dependências e rode:
 
    ```bash
@@ -224,7 +226,7 @@ src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
 src/lib/integrations/     conexão de WhatsApp próprio por tenant (ZapScript)
-supabase/migrations/      schema SQL (0001 fundação … 0018 pacotes/NPS)
+supabase/migrations/      schema SQL (0001 fundação … 0019 consistência do financeiro)
 supabase/tests/           shim do Supabase + cenários de RLS (run.sh)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```

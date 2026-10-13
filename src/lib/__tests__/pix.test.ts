@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPixPayload, crc16CCITT } from "@/lib/billing/pix";
+import { buildPixPayload, crc16CCITT, normalizePixKey } from "@/lib/billing/pix";
 
 describe("crc16CCITT", () => {
   it("bate com o vetor de teste padrão CRC-16/CCITT-FALSE", () => {
@@ -55,5 +55,39 @@ describe("buildPixPayload", () => {
     const payload = buildPixPayload({ ...base, merchantName: "!!!", merchantCity: "???" });
     expect(payload).toContain("5902NA");
     expect(payload).toContain("6002NA");
+  });
+});
+
+describe("normalizePixKey", () => {
+  it("e-mail em minúsculas; chave aleatória em minúsculas", () => {
+    expect(normalizePixKey("  Clinica@Exemplo.COM ")).toBe("clinica@exemplo.com");
+    expect(normalizePixKey("123E4567-E89B-12D3-A456-426614174000")).toBe("123e4567-e89b-12d3-a456-426614174000");
+  });
+
+  it("CPF/CNPJ com máscara viram só dígitos", () => {
+    expect(normalizePixKey("123.456.789-09")).toBe("12345678909");
+    expect(normalizePixKey("12.345.678/0001-95")).toBe("12345678000195");
+    expect(normalizePixKey("12345678000195")).toBe("12345678000195");
+  });
+
+  it("celular: +55 explícito é mantido; com máscara ganha +55", () => {
+    expect(normalizePixKey("+55 (11) 91234-5678")).toBe("+5511912345678");
+    expect(normalizePixKey("(11) 91234-5678")).toBe("+5511912345678");
+    expect(normalizePixKey("11 91234-5678")).toBe("+5511912345678");
+  });
+
+  it("11 dígitos sem máscara segue como CPF (ambíguo)", () => {
+    expect(normalizePixKey("12345678909")).toBe("12345678909");
+  });
+
+  it("o payload usa a chave normalizada", () => {
+    const payload = buildPixPayload({
+      pixKey: "(11) 91234-5678",
+      merchantName: "X",
+      merchantCity: "Y",
+      amountCents: 100,
+      txId: "a",
+    });
+    expect(payload).toContain("0114+5511912345678");
   });
 });

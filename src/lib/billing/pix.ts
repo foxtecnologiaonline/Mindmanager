@@ -14,6 +14,25 @@ import { stripDiacritics } from "@/lib/text";
 // próprios bytes anteriores, incluindo o cabeçalho "6304" do campo do
 // CRC.
 
+// Chave Pix no formato que o BR Code exige (sem máscara): e-mail em
+// minúsculas, telefone com +55, CPF/CNPJ só dígitos, chave aleatória (EVP)
+// em minúsculas. 11 dígitos sem máscara é ambíguo (CPF ou celular) e fica
+// como CPF — quem usa celular deve digitar com +55 (a tela avisa).
+export function normalizePixKey(raw: string): string {
+  const key = raw.trim();
+  if (key.includes("@")) return key.toLowerCase();
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) return key.toLowerCase();
+  if (key.startsWith("+")) return `+${key.replace(/\D/g, "")}`;
+  if (/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(key) || /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(key)) {
+    return key.replace(/\D/g, "");
+  }
+  // Celular/fixo com máscara: (11) 91234-5678
+  if (/^\(?\d{2}\)?[\s-]?\d{4,5}-?\d{4}$/.test(key) && /\D/.test(key)) {
+    return `+55${key.replace(/\D/g, "")}`;
+  }
+  return key;
+}
+
 function tlv(id: string, value: string): string {
   const length = String(value.length).padStart(2, "0");
   return `${id}${length}${value}`;
@@ -54,7 +73,7 @@ export function buildPixPayload({
 }): string {
   const amount = (amountCents / 100).toFixed(2);
 
-  const merchantAccountInfo = tlv("00", "BR.GOV.BCB.PIX") + tlv("01", pixKey.trim());
+  const merchantAccountInfo = tlv("00", "BR.GOV.BCB.PIX") + tlv("01", normalizePixKey(pixKey));
 
   // Sem espaço e só alfanumérico — mesmo conjunto aceito pro txid.
   const cleanTxId = stripDiacritics(txId).replace(/[^A-Za-z0-9]/g, "").slice(0, 25) || "***";
