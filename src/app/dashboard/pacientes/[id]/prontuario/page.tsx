@@ -413,11 +413,11 @@ export default async function ProntuarioPage({ params }: { params: Promise<{ id:
           )}
           <form action={uploadAttachment} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
             <input type="hidden" name="patientId" value={patientId} />
-            <div className="space-y-1">
+            <div className="min-w-0 max-w-full space-y-1">
               <label htmlFor="file" className="text-xs font-medium text-ink">
                 Arquivo (PDF, PNG, JPG ou WEBP, até 10 MB)
               </label>
-              <input id="file" name="file" type="file" required accept="application/pdf,image/png,image/jpeg,image/webp" className="block text-sm" />
+              <input id="file" name="file" type="file" required accept="application/pdf,image/png,image/jpeg,image/webp" className="block w-full min-w-0 max-w-full text-sm" />
             </div>
             <div className="min-w-40 flex-1 space-y-1">
               <label htmlFor="description" className="text-xs font-medium text-ink">

@@ -20,7 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .order("full_name");
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-dvh">
       <DashboardNav
         tenantName={tenantName}
         logoUrl={logoUrl}
@@ -28,7 +28,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role={role}
         patients={(patients ?? []).map((p) => ({ id: p.id, fullName: p.full_name, phone: p.phone }))}
       />
-      <div className="flex-1 pb-16 md:pb-0">{children}</div>
+      {/* min-w-0: sem isso um filho largo (tabela, grade) estica a coluna além da
+          tela e a página inteira vaza na horizontal. overflow-x-clip é a rede de
+          segurança; as telas devem rolar só dentro do próprio bloco largo.
+          O padding de baixo reserva o espaço da barra fixa do mobile. */}
+      <div className="min-w-0 flex-1 overflow-x-clip pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        {children}
+      </div>
     </div>
   );
 }

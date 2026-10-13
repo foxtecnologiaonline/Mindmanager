@@ -57,7 +57,7 @@ function ViewTabs({ view }: { view: View }) {
     { key: "links", label: "Links de pagamento" },
   ];
   return (
-    <div className="inline-flex gap-1 rounded-lg border border-border bg-paper p-1 text-sm">
+    <div className="flex max-w-full flex-wrap gap-1 rounded-lg border border-border bg-paper p-1 text-sm">
       {tabs.map((tab) => (
         <Link
           key={tab.key}
@@ -92,7 +92,7 @@ function StatusTabs({ status }: { status: Status }) {
     { key: "cancelled", label: "Canceladas" },
   ];
   return (
-    <div className="flex gap-4 text-sm">
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
       {tabs.map((tab) => (
         <Link
           key={tab.key}
@@ -254,7 +254,7 @@ export default async function FinanceiroPage({
                 const patient = Array.isArray(link.patients) ? link.patients[0] : link.patients;
                 const url = `${base}/pagar/${link.id}`;
                 return (
-                  <div key={link.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+                  <div key={link.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
                     <div>
                       <p className="font-medium text-ink">{patient?.full_name ?? "—"}</p>
                       <p className="text-muted-soft">
@@ -273,7 +273,7 @@ export default async function FinanceiroPage({
                         </span>
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink">{formatCents(link.amount_cents)}</span>
                       {link.status === "open" && (
                         <>
@@ -354,14 +354,14 @@ export default async function FinanceiroPage({
           ) : (
             <div className="card divide-y divide-border">
               {groups.map((g) => (
-                <div key={g.patientId} className="flex items-center justify-between gap-3 p-4 text-sm">
+                <div key={g.patientId} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
                   <div>
                     <Link href={`/dashboard/pacientes/${g.patientId}`} className="font-medium text-ink hover:underline">
                       {g.patientName}
                     </Link>
                     <p className="text-muted-soft">{g.invoiceIds.length} sessão(ões) pendente(s)</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="font-semibold text-ink">{formatCents(g.total)}</span>
                     <form action={createPaymentLink}>
                       <input type="hidden" name="patientId" value={g.patientId} />
@@ -439,7 +439,7 @@ export default async function FinanceiroPage({
                 : null;
 
               return (
-                <div key={inv.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+                <div key={inv.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
                   <div>
                     <p className="font-medium text-ink">
                       {patient ? (
@@ -458,7 +458,7 @@ export default async function FinanceiroPage({
                       {inv.status === "paid" && inv.method && ` · ${METHOD_LABEL[inv.method]}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-ink">{formatCents(inv.amount_cents)}</span>
                     {inv.status === "pending" && (
                       <>

@@ -7,15 +7,15 @@ import { logout } from "@/lib/actions";
 import { GlobalSearch } from "@/components/global-search";
 import { can, type Capability } from "@/lib/permissions";
 
-type NavItem = { href: string; label: string; icon: "home" | "calendar" | "users" | "cash" | "team" | "settings"; cap?: Capability };
+type NavItem = { href: string; label: string; shortLabel?: string; icon: "home" | "calendar" | "users" | "cash" | "team" | "settings"; cap?: Capability };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "home" },
+  { href: "/dashboard", label: "Dashboard", shortLabel: "Início", icon: "home" },
   { href: "/dashboard/agenda", label: "Agenda", icon: "calendar" },
   { href: "/dashboard/pacientes", label: "Pacientes", icon: "users" },
   { href: "/dashboard/financeiro", label: "Financeiro", icon: "cash", cap: "finance" },
   { href: "/dashboard/equipe", label: "Equipe", icon: "team", cap: "team" },
-  { href: "/dashboard/agenda/configuracoes", label: "Configurações", icon: "settings", cap: "settings" },
+  { href: "/dashboard/agenda/configuracoes", label: "Configurações", shortLabel: "Config.", icon: "settings", cap: "settings" },
 ];
 
 type IconName = NavItem["icon"] | "logout";
@@ -147,8 +147,10 @@ export function DashboardNav({
   return (
     <>
       {/* Desktop: coluna fixa à esquerda */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
-        <div className="flex items-center gap-2 p-4">
+      {/* sticky + altura da tela: a barra fica parada enquanto a página rola, e o
+          "Sair" no rodapé dela não muda de lugar conforme o tamanho da página. */}
+      <aside className="hidden h-dvh w-60 shrink-0 flex-col self-start border-r border-border bg-surface md:sticky md:top-0 md:flex">
+        <div className="flex shrink-0 items-center gap-2 p-4">
           {logoUrl ? (
             <Image
               src={logoUrl}
@@ -165,15 +167,15 @@ export function DashboardNav({
           <span className="heading truncate text-base">{tenantName ?? "MindManager"}</span>
         </div>
 
-        <div className="px-3">
+        <div className="shrink-0 px-3">
           <GlobalSearch patients={patients} />
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 p-3">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
           <NavLinks items={items} pathname={pathname} />
         </nav>
 
-        <div className="border-t border-border p-3">
+        <div className="shrink-0 border-t border-border p-3">
           <p className="truncate px-3 text-xs text-muted-soft">{fullName}</p>
           <form action={logout}>
             <button
@@ -187,7 +189,7 @@ export function DashboardNav({
       </aside>
 
       {/* Mobile: tab bar fixa no rodapé */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-bottom))] border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
         {items.map((item) => {
           const active = isActive(items, pathname, item.href);
           return (
@@ -195,19 +197,19 @@ export function DashboardNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
+              className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium ${
                 active ? "text-accent-dark" : "text-muted-soft"
               }`}
             >
               <NavIcon name={item.icon} className="h-5 w-5" />
-              {item.label}
+              <span className="max-w-full truncate px-0.5">{item.shortLabel ?? item.label}</span>
             </Link>
           );
         })}
-        <form action={logout} className="flex flex-1">
+        <form action={logout} className="flex min-w-0 flex-1">
           <button
             type="submit"
-            className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium text-muted-soft"
+            className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-muted-soft"
           >
             <NavIcon name="logout" className="h-5 w-5" />
             Sair

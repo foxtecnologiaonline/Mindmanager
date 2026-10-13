@@ -86,13 +86,13 @@ export default async function AgendaConfigPage() {
                 sem logo
               </div>
             )}
-            <form action={uploadTenantLogo} className="flex items-center gap-2 text-sm">
+            <form action={uploadTenantLogo} className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
               <input
                 type="file"
                 name="logo"
                 accept="image/png,image/jpeg,image/webp"
                 required
-                className="text-xs"
+                className="w-full min-w-0 max-w-full text-xs sm:w-auto"
               />
               <SubmitButton
                 pendingText="Enviando..."

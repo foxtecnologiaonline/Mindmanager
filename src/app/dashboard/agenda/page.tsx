@@ -619,8 +619,8 @@ export default async function AgendaPage({
         />
 
         <div className="lg:flex lg:items-start lg:gap-6">
-          <div className="flex-1 space-y-6">
-            <div className="flex items-center justify-between text-sm">
+          <div className="min-w-0 flex-1 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
               <Link href={`/dashboard/agenda?date=${addDays(date, -1)}`} className="link-accent">
                 &larr; dia anterior
               </Link>

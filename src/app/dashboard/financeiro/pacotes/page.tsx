@@ -85,7 +85,7 @@ export default async function PackagesPage() {
               const remaining = pkg.sessions_total - pkg.sessions_used;
 
               return (
-                <div key={pkg.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+                <div key={pkg.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
                   <div>
                     <p className="font-medium text-ink">
                       {patient ? (
@@ -105,7 +105,7 @@ export default async function PackagesPage() {
                     </p>
                   </div>
                   {pkg.status !== "cancelled" && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted-soft">{remaining} restante(s)</span>
                       {pkg.sessions_used > 0 && (
                         <form action={undoPackageSession}>
