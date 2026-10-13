@@ -4,8 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import { normalizePixKey } from "@/lib/billing/pix";
 import { parseMethod } from "@/lib/billing/payment-method";
+import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
+import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
+import { buildPaymentLinkMessage } from "@/lib/notifications/messages";
+import { siteUrl } from "@/lib/site-url";
 
 const MAX_AMOUNT_CENTS = 100_000_000; // R$ 1.000.000,00 — acima disso é erro de digitação
 
@@ -24,6 +27,44 @@ async function requireTenant() {
   return { supabase, tenantId };
 }
 
+// Cobrança avulsa ou de um agendamento: se a clínica ligou o envio
+// automático (Configurações › Recebimento) e tem Pix ou maquininha
+// configurados, um trigger no banco (migration 0020) já empacotou essa
+// cobrança num link de pagamento sozinho — aqui só falta mandar o
+// WhatsApp pro paciente com ele.
+async function autoSendNewInvoice(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  invoiceId: string,
+  patientId: string,
+  tenantId: string,
+) {
+  const { data: link } = await supabase
+    .from("payment_links")
+    .select("id, amount_cents")
+    .eq("tenant_id", tenantId)
+    .contains("invoice_ids", [invoiceId])
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!link) return;
+
+  const [{ data: patient }, { data: tenant }] = await Promise.all([
+    supabase.from("patients").select("phone").eq("id", patientId).single(),
+    supabase.from("tenants").select("name").eq("id", tenantId).single(),
+  ]);
+  if (!patient?.phone) return;
+
+  const senderOverride = await resolveWhatsappSender(tenantId);
+  await sendWhatsAppMessage(
+    patient.phone,
+    buildPaymentLinkMessage(tenant?.name ?? "Clínica", link.amount_cents, `${await siteUrl()}/pagar/${link.id}`),
+    `payment-link-${link.id}`,
+    senderOverride,
+  );
+}
+
 // Cobrança manual, fora do fluxo de agendamento (ex: cobrar um pacote de
 // sessões, ou um atendimento que não passou pela agenda).
 export async function createManualInvoice(formData: FormData) {
@@ -40,16 +81,22 @@ export async function createManualInvoice(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("invoices").insert({
-    tenant_id: tenantId,
-    patient_id: patientId,
-    amount_cents: amountCents,
-    notes: notes || null,
-  });
+  const { data: invoice, error } = await supabase
+    .from("invoices")
+    .insert({
+      tenant_id: tenantId,
+      patient_id: patientId,
+      amount_cents: amountCents,
+      notes: notes || null,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    redirect(`/dashboard/financeiro?error=${encodeURIComponent(error.message)}`);
+  if (error || !invoice) {
+    redirect(`/dashboard/financeiro?error=${encodeURIComponent(error?.message ?? "Não foi possível criar a cobrança.")}`);
   }
+
+  await autoSendNewInvoice(supabase, invoice.id, patientId, tenantId);
 
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?success=${encodeURIComponent("Cobrança criada.")}`);
@@ -109,38 +156,4 @@ export async function cancelInvoice(formData: FormData) {
 
   revalidatePath("/dashboard/financeiro");
   redirect(`/dashboard/financeiro?success=${encodeURIComponent("Cobrança cancelada.")}`);
-}
-
-// Dados usados só pra formatar o código Pix Copia e Cola (lib/billing/pix.ts)
-// — a clínica informa a própria chave, nada é validado contra o Banco
-// Central nem enviado a nenhum provedor.
-export async function updatePixSettings(formData: FormData) {
-  const { supabase, tenantId } = await requireTenant();
-
-  const pixKey = normalizePixKey(String(formData.get("pixKey") ?? ""));
-  const pixHolderName = String(formData.get("pixHolderName") ?? "").trim();
-  const pixCity = String(formData.get("pixCity") ?? "").trim();
-
-  if (!pixKey || !pixHolderName || !pixCity || pixKey.length > 77 || pixHolderName.length > 60 || pixCity.length > 40) {
-    redirect(
-      `/dashboard/financeiro?error=${encodeURIComponent("Preencha chave Pix, nome e cidade.")}`,
-    );
-  }
-
-  const { data: saved, error: saveError } = await supabase
-    .from("tenants")
-    .update({ pix_key: pixKey, pix_holder_name: pixHolderName, pix_city: pixCity })
-    .eq("id", tenantId)
-    .select("id");
-
-  if (saveError || !saved?.length) {
-    redirect(
-      `/dashboard/financeiro?error=${encodeURIComponent(
-        saveError?.message ?? "Não foi possível salvar os dados do Pix.",
-      )}`,
-    );
-  }
-
-  revalidatePath("/dashboard/financeiro");
-  redirect(`/dashboard/financeiro?success=${encodeURIComponent("Dados do Pix salvos.")}`);
 }

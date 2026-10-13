@@ -39,11 +39,12 @@ migrations a cada push/PR.
    variáveis de Twilio/cron são opcionais (ver comentários no arquivo).
 3. Aplique as migrations em `supabase/migrations/` **em ordem** (SQL
    Editor do painel Supabase, ou `supabase db push` com a CLI):
-   todos os arquivos `0001_…` até `0019_…` na ordem numérica. **Aplique as
+   todos os arquivos `0001_…` até `0020_…` na ordem numérica. **Aplique as
    migrations antes de publicar o código que depende delas** (equipe/papéis
    em `0016`, prontuário em `0017`, baixa de pacote/NPS/lembretes em `0018`,
-   consistência do financeiro em `0019`). Atalho: `supabase/pending/aplicar_0013_a_0019.sql`
-   junta 0013–0019 e é re-executável (gerado por `supabase/tests/build_pending.py`).
+   consistência do financeiro em `0019`, recebimento configurável + envio
+   automático em `0020`). Atalho: `supabase/pending/aplicar_0013_a_0020.sql`
+   junta 0013–0020 e é re-executável (gerado por `supabase/tests/build_pending.py`).
 4. Instale dependências e rode:
 
    ```bash
@@ -205,6 +206,21 @@ self-service como no ZapScript (que é produto da própria plataforma).
   (variable) — `.github/workflows/reminders.yml`.
 - Concluir a consulta baixa uma sessão do pacote ativo do paciente.
 
+## Recebimento e envio automático por WhatsApp (0020)
+
+- `/dashboard/agenda/configuracoes` › "Recebimento": chave Pix e/ou
+  maquininha/adquirente (texto livre — continua sem processar pagamento
+  nenhum, só informa o paciente).
+- Interruptor "gerar e enviar cobrança automaticamente pelo WhatsApp"
+  (**desligado por padrão**, mesmo que a clínica já tenha Pix
+  configurado — é um clique em Configurações, não um default silencioso).
+  Ligado: toda cobrança nova (agendamento com preço, cobrança avulsa)
+  já nasce num link de pagamento (trigger em `invoices`) e o WhatsApp
+  sai sozinho — junto com a pergunta de confirmação quando vem de
+  agendamento, pra não mandar duas mensagens pela mesma consulta.
+  "Gerar link" manual (acerto) também manda sozinho; "copiar link"
+  continua disponível de qualquer jeito.
+
 ## Operação
 
 - `GET /api/health` (app + Supabase Auth). O workflow `uptime.yml` chama a
@@ -226,7 +242,7 @@ src/app/agendar/[slug]/   página pública de agendamento
 src/app/api/cron/         lembrete diário (chamado por scheduler externo)
 src/app/api/webhooks/     resposta 1/2 do paciente via WhatsApp (ZapScript/Twilio)
 src/lib/integrations/     conexão de WhatsApp próprio por tenant (ZapScript)
-supabase/migrations/      schema SQL (0001 fundação … 0019 consistência do financeiro)
+supabase/migrations/      schema SQL (0001 fundação … 0020 recebimento/envio automático)
 supabase/tests/           shim do Supabase + cenários de RLS (run.sh)
 SCOPE.md                  escopo do produto e roadmap de fases (F0–F4)
 ```

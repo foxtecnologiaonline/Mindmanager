@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import { parseMethod } from "@/lib/billing/payment-method";
+import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
+import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
+import { buildPaymentLinkMessage } from "@/lib/notifications/messages";
+import { siteUrl } from "@/lib/site-url";
 
 async function requireTenant() {
   const supabase = await createClient();
@@ -68,8 +72,41 @@ export async function createPaymentLink(formData: FormData) {
     redirect(`/dashboard/financeiro?error=${encodeURIComponent(error.message)}`);
   }
 
+  // "Gerar link" é um clique explícito da equipe — se o envio automático
+  // estiver ligado (Configurações › Recebimento) e o paciente tiver
+  // telefone, manda na hora em vez de só deixar o botão "copiar link"
+  // pra equipe repassar por fora.
+  const sentViaWhatsapp = await trySendPaymentLink(supabase, tenantId, patientId, link!.id, amountCents);
+
   revalidatePath("/dashboard/financeiro");
-  redirect(`/dashboard/financeiro?view=links&linkCreated=${link!.id}`);
+  redirect(
+    `/dashboard/financeiro?view=links&linkCreated=${link!.id}${sentViaWhatsapp ? "&linkSent=1" : ""}`,
+  );
+}
+
+async function trySendPaymentLink(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  patientId: string,
+  linkId: string,
+  amountCents: number,
+): Promise<boolean> {
+  const [{ data: tenant }, { data: patient }] = await Promise.all([
+    supabase.from("tenants").select("name, auto_send_payment_whatsapp").eq("id", tenantId).single(),
+    supabase.from("patients").select("phone").eq("id", patientId).single(),
+  ]);
+
+  if (!tenant?.auto_send_payment_whatsapp || !patient?.phone) return false;
+
+  const senderOverride = await resolveWhatsappSender(tenantId);
+  const url = `${await siteUrl()}/pagar/${linkId}`;
+  const result = await sendWhatsAppMessage(
+    patient.phone,
+    buildPaymentLinkMessage(tenant.name ?? "Clínica", amountCents, url),
+    `payment-link-${linkId}`,
+    senderOverride,
+  );
+  return result.sent;
 }
 
 // Confirmação continua manual, do lado da equipe — a página pública do

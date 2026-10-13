@@ -1,17 +1,24 @@
 import { addDays, dateOfISOBR, todayBR } from "@/lib/scheduling/dates";
+import { formatCents } from "@/lib/billing/money";
 
 // "Responda 1/2" em vez de SIM/NÃO/CANCELAR: essas palavras são reservadas
 // no ZapScript para opt-out de campanha (PARAR/SAIR/CANCELAR) e opt-in
 // (SIM) — colidem com a resposta do paciente e disparam réplica automática
 // de campanha além da nossa. 1/2 evita a colisão.
-export function buildConfirmationQuestion(startsAt: Date) {
+//
+// paymentUrl: quando a consulta gerou cobrança e a clínica ligou o envio
+// automático (Configurações › Recebimento), o link de pagamento entra na
+// MESMA mensagem em vez de uma segunda — evita mandar duas mensagens de
+// WhatsApp pra mesma consulta (ver lib/billing/auto-send.ts).
+export function buildConfirmationQuestion(startsAt: Date, paymentUrl?: string | null) {
   const when = startsAt.toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
     timeZone: "America/Sao_Paulo",
   });
 
-  return `Você tem uma consulta marcada para ${when}. Responda 1 para confirmar ou 2 para cancelar.`;
+  const base = `Você tem uma consulta marcada para ${when}. Responda 1 para confirmar ou 2 para cancelar.`;
+  return paymentUrl ? `${base}\n\nPara pagar antecipado: ${paymentUrl}` : base;
 }
 
 export function buildConfirmedReply() {
@@ -61,4 +68,12 @@ export function buildReminder24h(startsAt: Date, pending: boolean) {
 
 export function buildFollowup(clinicName: string, npsUrl: string) {
   return `Obrigado por ter vindo à ${clinicName}! Como foi seu atendimento? Leva 10 segundos: ${npsUrl}`;
+}
+
+// Cobrança avulsa ou link de acerto (várias sessões juntas) — a página
+// /pagar/<id> já mostra Pix e/ou maquininha, conforme o que a clínica
+// configurou, então a mensagem não precisa repetir qual método está
+// disponível.
+export function buildPaymentLinkMessage(clinicName: string, amountCents: number, url: string) {
+  return `${clinicName}: cobrança de ${formatCents(amountCents)}. Para pagar: ${url}`;
 }

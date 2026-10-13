@@ -19,7 +19,6 @@ import {
   createManualInvoice,
   markInvoicePaid,
   undoInvoicePayment,
-  updatePixSettings,
 } from "@/lib/billing/actions";
 import {
   cancelPaymentLink,
@@ -106,18 +105,23 @@ export default async function FinanceiroPage({
     undoInvoiceId?: string;
     undoLinkId?: string;
     linkCreated?: string;
+    linkSent?: string;
   }>;
 }) {
   const { tenantId, role } = await getTenantContext();
   requireCapability(role, "finance");
-  const { status: statusParam, view: viewParam, undoInvoiceId, undoLinkId, linkCreated } =
+  const { status: statusParam, view: viewParam, undoInvoiceId, undoLinkId, linkCreated, linkSent } =
     await searchParams;
   const status = resolveStatus(statusParam);
   const view = resolveView(viewParam);
   const supabase = await createClient();
 
   const [{ data: tenant }, { count: pendingCount }, totalReceivedThisMonth] = await Promise.all([
-    supabase.from("tenants").select("pix_key, pix_holder_name, pix_city").eq("id", tenantId).single(),
+    supabase
+      .from("tenants")
+      .select("pix_key, pix_holder_name, pix_city, accepts_card")
+      .eq("id", tenantId)
+      .single(),
     supabase
       .from("invoices")
       .select("id", { count: "exact", head: true })
@@ -125,7 +129,9 @@ export default async function FinanceiroPage({
       .eq("status", "pending"),
     sumReceived(supabase, tenantId, currentMonthBR()),
   ]);
-  const pixConfigured = Boolean(tenant?.pix_key && tenant?.pix_holder_name && tenant?.pix_city);
+  const paymentConfigured = Boolean(
+    (tenant?.pix_key && tenant?.pix_holder_name && tenant?.pix_city) || tenant?.accepts_card,
+  );
 
   const totalPendingCount = pendingCount ?? 0;
 
@@ -165,43 +171,15 @@ export default async function FinanceiroPage({
         acompanha quem já pagou, se gera link de pagamento e se emite recibo.
       </p>
 
-      <details className="card p-4">
-        <summary className="cursor-pointer text-sm font-medium text-ink">
-          Configurar Pix da clínica {pixConfigured ? "✓" : "— necessário pra gerar link de pagamento"}
-        </summary>
-        <form action={updatePixSettings} className="mt-4 flex flex-wrap items-end gap-3 text-sm">
-          <div className="space-y-1">
-            <label className="font-medium text-ink">Chave Pix</label>
-            <input name="pixKey" required maxLength={77} defaultValue={tenant?.pix_key ?? ""} className="input" />
-            <p className="max-w-56 text-[11px] text-muted-soft">
-              E-mail, CPF/CNPJ, chave aleatória ou celular <strong>com +55</strong> (ex: +5511912345678).
-            </p>
-          </div>
-          <div className="space-y-1">
-            <label className="font-medium text-ink">Nome do titular</label>
-            <input
-              name="pixHolderName"
-              required
-              maxLength={25}
-              defaultValue={tenant?.pix_holder_name ?? ""}
-              className="input"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="font-medium text-ink">Cidade</label>
-            <input
-              name="pixCity"
-              required
-              maxLength={15}
-              defaultValue={tenant?.pix_city ?? ""}
-              className="input w-40"
-            />
-          </div>
-          <SubmitButton pendingText="Salvando..." className="btn-primary">
-            Salvar
-          </SubmitButton>
-        </form>
-      </details>
+      {!paymentConfigured && (
+        <p className="card border-amber-300 p-3 text-xs text-ink">
+          Nenhuma forma de recebimento configurada ainda —{" "}
+          <Link href="/dashboard/agenda/configuracoes" className="link-accent font-medium">
+            configure Pix ou maquininha
+          </Link>{" "}
+          pra gerar links de pagamento.
+        </p>
+      )}
 
       <ViewTabs view={view} />
     </>
@@ -224,7 +202,9 @@ export default async function FinanceiroPage({
 
           {linkCreated && (
             <div className="card space-y-2 border-accent/40 bg-accent-soft p-4 text-sm">
-              <p className="font-medium text-ink">Link criado — envie para o paciente:</p>
+              <p className="font-medium text-ink">
+                {linkSent ? "Link criado e enviado por WhatsApp." : "Link criado — envie para o paciente:"}
+              </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 truncate rounded bg-surface p-2 text-xs">
                   {base}/pagar/{linkCreated}

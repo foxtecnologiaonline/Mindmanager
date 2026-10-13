@@ -1,5 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildReminder24h } from "@/lib/notifications/messages";
+import { buildConfirmationQuestion, buildPaymentLinkMessage, buildReminder24h } from "@/lib/notifications/messages";
+
+describe("buildConfirmationQuestion", () => {
+  const startsAt = new Date("2026-10-20T20:00:00Z");
+
+  it("sem link de pagamento, é só a pergunta de confirmação", () => {
+    const msg = buildConfirmationQuestion(startsAt);
+    expect(msg).toContain("Responda 1 para confirmar ou 2 para cancelar.");
+    expect(msg).not.toContain("pagar");
+  });
+
+  it("com link, adiciona numa segunda linha (mesma mensagem, não uma nova)", () => {
+    const msg = buildConfirmationQuestion(startsAt, "https://x.test/pagar/abc");
+    expect(msg).toContain("Responda 1 para confirmar ou 2 para cancelar.");
+    expect(msg).toContain("Para pagar antecipado: https://x.test/pagar/abc");
+  });
+
+  it("null/undefined/vazio não acrescenta nada", () => {
+    expect(buildConfirmationQuestion(startsAt, null)).not.toContain("pagar");
+    expect(buildConfirmationQuestion(startsAt, undefined)).not.toContain("pagar");
+    expect(buildConfirmationQuestion(startsAt, "")).not.toContain("pagar");
+  });
+});
+
+describe("buildPaymentLinkMessage", () => {
+  it("inclui clínica, valor formatado e o link", () => {
+    const msg = buildPaymentLinkMessage("Clínica Teste", 15050, "https://x.test/pagar/abc");
+    expect(msg).toContain("Clínica Teste");
+    expect(msg).toContain("R$");
+    expect(msg).toContain("150,50");
+    expect(msg).toContain("https://x.test/pagar/abc");
+  });
+});
 
 // A janela do cron (src/app/api/cron/reminders/route.ts) cobre
 // [agora+1h, agora+25h] para suportar execuções horárias — uma consulta

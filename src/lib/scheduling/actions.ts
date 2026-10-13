@@ -9,6 +9,7 @@ import { buildConfirmationQuestion } from "@/lib/notifications/messages";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveWhatsappSender } from "@/lib/notifications/sender-config";
 import { ensureTenantId } from "@/lib/tenant";
+import { siteUrl } from "@/lib/site-url";
 import {
   BRAZIL_UTC_OFFSET,
   buildRecurrenceDates,
@@ -18,6 +19,24 @@ import {
 
 const RECURRENCES: Recurrence[] = ["none", "weekly", "biweekly", "monthly"];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Se o agendamento gerou cobrança e a clínica ligou o envio automático
+// (Configurações › Recebimento), a migration 0020 já empacotou a cobrança
+// num link de pagamento sozinha (via trigger em invoices) — aqui só
+// descobrimos o id pra colar o link na mesma mensagem de confirmação, em
+// vez de mandar uma segunda mensagem de WhatsApp pra mesma consulta.
+// RPC em vez de SELECT direto: funciona tanto pro agendamento manual da
+// equipe (autenticado) quanto pro público (anônimo, sem acesso de
+// leitura a payment_links por RLS).
+async function getPaymentLinkUrl(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  appointmentId: string,
+): Promise<string | null> {
+  const { data: linkId } = await supabase.rpc("get_latest_payment_link_for_appointment", {
+    p_appointment_id: appointmentId,
+  });
+  return linkId ? `${await siteUrl()}/pagar/${linkId}` : null;
+}
 
 async function requireProfile() {
   const supabase = await createClient();
@@ -204,15 +223,17 @@ export async function createManualAppointment(formData: FormData) {
 
     successCount++;
     const appointment = data as { id: string };
+    const paymentUrl = await getPaymentLinkUrl(supabase, appointment.id);
     await sendWhatsAppMessage(
       patientPhone,
-      buildConfirmationQuestion(startsAt),
+      buildConfirmationQuestion(startsAt, paymentUrl),
       `confirm-question-${appointment.id}`,
       senderOverride,
     );
   }
 
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/financeiro");
 
   if (successCount === 0) {
     redirect(
@@ -437,10 +458,11 @@ export async function bookPublicAppointment(input: {
 
   const appointment = data as { id: string; starts_at: string; tenant_id: string };
   const senderOverride = await resolveWhatsappSender(appointment.tenant_id);
+  const paymentUrl = await getPaymentLinkUrl(supabase, appointment.id);
 
   await sendWhatsAppMessage(
     input.patientPhone,
-    buildConfirmationQuestion(new Date(appointment.starts_at)),
+    buildConfirmationQuestion(new Date(appointment.starts_at), paymentUrl),
     `confirm-question-${appointment.id}`,
     senderOverride,
   );

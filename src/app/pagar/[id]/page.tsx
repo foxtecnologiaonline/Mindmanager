@@ -28,6 +28,8 @@ const getPaymentLinkInfo = cache(async (id: string) => {
     pix_key: string | null;
     pix_holder_name: string | null;
     pix_city: string | null;
+    accepts_card: boolean;
+    card_instructions: string | null;
   };
 });
 
@@ -84,7 +86,7 @@ export default async function PaymentLinkPage({ params }: { params: Promise<{ id
               <p className="text-sm text-muted-soft">Valor a pagar</p>
               <p className="text-3xl font-semibold text-ink">{formatCents(info.amount_cents)}</p>
 
-              {pixPayload ? (
+              {pixPayload && (
                 <div className="space-y-2 text-left">
                   <p className="text-sm font-medium text-ink">Pague com Pix (copia e cola)</p>
                   <code className="block break-all rounded-lg border border-border bg-paper p-3 text-xs">
@@ -96,9 +98,20 @@ export default async function PaymentLinkPage({ params }: { params: Promise<{ id
                     acima.
                   </p>
                 </div>
-              ) : (
+              )}
+
+              {info.accepts_card && (
+                <div className="space-y-1 text-left">
+                  <p className="text-sm font-medium text-ink">Ou pague no cartão</p>
+                  <p className="text-sm text-muted-soft">
+                    {info.card_instructions || "Fale com a clínica para pagar na maquininha."}
+                  </p>
+                </div>
+              )}
+
+              {!pixPayload && !info.accepts_card && (
                 <p className="text-sm text-muted-soft">
-                  A clínica ainda não configurou uma chave Pix para receber por este link — fale
+                  A clínica ainda não configurou uma forma de recebimento para este link — fale
                   diretamente com a clínica para pagar.
                 </p>
               )}

@@ -205,6 +205,25 @@ sistema.
   verdade — convém confirmar com um valor pequeno antes de divulgar
   pra pacientes.
 
+**Recebimento configurável + geração/envio automático implementado em
+2026-10-13** (migration 0020): a configuração de Pix saiu do Financeiro
+e foi pra `/dashboard/agenda/configuracoes` › "Recebimento", junto com
+maquininha/adquirente (texto livre — "aceita cartão" + como funciona,
+mesma categoria do Pix: só informa o paciente, não processa nada) e um
+interruptor "gerar e enviar cobrança automaticamente pelo WhatsApp".
+Ligado, toda cobrança nova (agendamento com preço ou cobrança avulsa)
+já nasce empacotada num link de pagamento (trigger em `invoices`,
+cobre os dois jeitos de cobrança nascer sem duplicar lógica) e o
+WhatsApp sai sozinho — na mesma mensagem da pergunta de confirmação,
+quando a cobrança veio de um agendamento, pra não mandar duas
+mensagens pela mesma consulta. "Gerar link" manual (acerto de várias
+cobranças) também manda sozinho quando o interruptor está ligado; o
+botão "copiar link" continua disponível de qualquer forma.
+**Decisão de produto**: o interruptor nasce **desligado** mesmo numa
+clínica que já tem Pix configurado — migração nenhuma liga sozinha o
+envio automático de mensagem pro paciente; é um clique em
+Configurações.
+
 ### F4 — Retenção
 Lembrete pós-consulta · NPS
 

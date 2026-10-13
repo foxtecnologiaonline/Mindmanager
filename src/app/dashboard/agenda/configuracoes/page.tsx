@@ -8,6 +8,7 @@ import { Toast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import { WhatsappConnection } from "@/components/whatsapp-connection";
 import { uploadTenantLogo } from "@/lib/branding/actions";
+import { updatePaymentSettings } from "@/lib/billing/settings-actions";
 import {
   createServiceType,
   createWorkingHour,
@@ -34,7 +35,9 @@ export default async function AgendaConfigPage() {
 
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("whatsapp_mode, whatsapp_number_id")
+    .select(
+      "whatsapp_mode, whatsapp_number_id, pix_key, pix_holder_name, pix_city, accepts_card, card_instructions, auto_send_payment_whatsapp",
+    )
     .eq("id", tenantId)
     .single();
 
@@ -115,6 +118,107 @@ export default async function AgendaConfigPage() {
             numberId={tenant?.whatsapp_number_id ?? null}
             isAdmin={role === "admin"}
           />
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-medium text-ink">Recebimento</h2>
+          <p className="text-sm text-muted-soft">
+            Como a clínica recebe: Pix, maquininha/adquirente, ou os dois. Usado pra gerar o
+            link de pagamento (<code>/pagar</code>) e, se ligado abaixo, pra mandar esse link
+            pro paciente por WhatsApp sozinho.
+          </p>
+          <form action={updatePaymentSettings} className="space-y-4 text-sm">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <label htmlFor="pixKey" className="font-medium text-ink">
+                  Chave Pix
+                </label>
+                <input
+                  id="pixKey"
+                  name="pixKey"
+                  maxLength={77}
+                  defaultValue={tenant?.pix_key ?? ""}
+                  className="input"
+                />
+                <p className="max-w-56 text-[11px] text-muted-soft">
+                  E-mail, CPF/CNPJ, chave aleatória ou celular <strong>com +55</strong> (ex:
+                  +5511912345678).
+                </p>
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="pixHolderName" className="font-medium text-ink">
+                  Nome do titular
+                </label>
+                <input
+                  id="pixHolderName"
+                  name="pixHolderName"
+                  maxLength={25}
+                  defaultValue={tenant?.pix_holder_name ?? ""}
+                  className="input"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="pixCity" className="font-medium text-ink">
+                  Cidade
+                </label>
+                <input
+                  id="pixCity"
+                  name="pixCity"
+                  maxLength={15}
+                  defaultValue={tenant?.pix_city ?? ""}
+                  className="input w-40"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t border-border pt-3">
+              <label className="flex items-center gap-2 font-medium text-ink">
+                <input
+                  type="checkbox"
+                  name="acceptsCard"
+                  defaultChecked={tenant?.accepts_card ?? false}
+                />
+                Aceita cartão (maquininha/adquirente)
+              </label>
+              <div className="space-y-1">
+                <label htmlFor="cardInstructions" className="text-xs text-muted-soft">
+                  Como funciona (mostrado ao paciente) — ex: &quot;Maquininha na recepção,
+                  crédito/débito, até 3x sem juros&quot;
+                </label>
+                <textarea
+                  id="cardInstructions"
+                  name="cardInstructions"
+                  rows={2}
+                  maxLength={300}
+                  defaultValue={tenant?.card_instructions ?? ""}
+                  className="input w-full"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2 border-t border-border pt-3 text-ink">
+              <input
+                type="checkbox"
+                name="autoSendPaymentWhatsapp"
+                className="mt-0.5"
+                defaultChecked={tenant?.auto_send_payment_whatsapp ?? false}
+              />
+              <span>
+                <span className="font-medium">Gerar e enviar cobrança automaticamente pelo WhatsApp</span>
+                <br />
+                <span className="text-xs text-muted-soft">
+                  Ao agendar uma consulta com preço ou criar uma cobrança avulsa, o sistema já
+                  gera o link de pagamento (com o que estiver configurado acima) e manda pro
+                  paciente — sem precisar copiar e enviar na mão. Desligado, o link continua
+                  sendo gerado só quando a equipe clicar em &quot;Gerar link&quot; no Financeiro.
+                </span>
+              </span>
+            </label>
+
+            <SubmitButton pendingText="Salvando..." className="btn-primary">
+              Salvar
+            </SubmitButton>
+          </form>
         </section>
 
         <section className="space-y-3">
