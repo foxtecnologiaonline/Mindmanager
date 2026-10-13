@@ -59,7 +59,7 @@ export default async function ReceivedPage({
             <Link href={`/dashboard/financeiro/recebimentos?month=${prev}`} className="btn-secondary px-2 py-1" aria-label="Mês anterior">
               ←
             </Link>
-            <span className="min-w-36 text-center font-medium capitalize text-ink">{monthLabel(month)}</span>
+            <span className="min-w-36 text-center font-medium text-ink first-letter:uppercase">{monthLabel(month)}</span>
             {isCurrent ? (
               <span className="btn-secondary px-2 py-1 opacity-40" aria-hidden>
                 →
