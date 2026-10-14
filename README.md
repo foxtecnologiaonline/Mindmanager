@@ -131,36 +131,35 @@ Sem nenhum dos dois provedores configurado, o envio cai para um log no
 console (não quebra o agendamento) e o fluxo funciona só via
 confirmação manual pela equipe.
 
-## Número de WhatsApp: compartilhado ou próprio (0006)
+## Número de WhatsApp (0006)
 
-Por padrão, toda clínica manda mensagens pelo número **compartilhado**
-da plataforma (`ZAPSCRIPT_API_KEY`/`ZAPSCRIPT_NUMBER_ID` do ambiente).
-Em `/dashboard/agenda/configuracoes` (só admin), a clínica pode
-conectar o **próprio** número de WhatsApp — self-service, sem precisar
-de ninguém da plataforma fazer nada:
+Toda clínica manda e recebe mensagem pelo **número único do
+MindManager** (`ZAPSCRIPT_API_KEY`/`ZAPSCRIPT_NUMBER_ID`/`ZAPSCRIPT_WEBHOOK_SECRET`
+do ambiente — ver seção ZapScript abaixo para como configurar).
+`resolveWhatsappSender` (`src/lib/notifications/sender-config.ts`) decide
+isso por tenant, lendo `tenants.whatsapp_mode` via service role.
 
-1. A clínica conecta o WhatsApp dela no painel do ZapScript (QR code —
-   isso é feito no produto ZapScript, fora do MindManager).
-2. Cria uma API key própria com os scopes `messages:send` e
-   `webhooks:manage`.
-3. Cola a API key em "Número de WhatsApp" → o MindManager busca os
-   números conectados dessa conta (`GET /public/v1/numbers`), a clínica
-   escolhe um, e o sistema registra o webhook de resposta sozinho
-   (`POST /public/v1/webhooks`, com a URL dedicada
-   `/api/webhooks/zapscript/<tenantId>`), guardando o secret retornado.
+**Decisão de produto (2026-10-14)**: número próprio por clínica está
+**desligado por enquanto** — a trava fica em `OWN_WHATSAPP_NUMBER_ENABLED`
+(`src/lib/integrations/whatsapp-actions.ts`), nas próprias server
+actions (não só escondido na UI, já que uma server action é um
+endpoint chamável direto). A infraestrutura continua no banco
+(migration `0006`: `tenants.whatsapp_mode/whatsapp_api_key/
+whatsapp_number_id/whatsapp_webhook_secret`, rota dedicada
+`/api/webhooks/zapscript/<tenantId>`) e volta a ficar disponível só
+mudando essa constante — nenhuma migration nova seria necessária.
 
-A partir daí, tudo desse tenant (pergunta de confirmação, lembrete
-24h, resposta do paciente) passa pelo número próprio — `resolveWhatsappSender`
-(`src/lib/notifications/sender-config.ts`) decide isso por tenant, lendo
-`tenants.whatsapp_mode` via service role (a API key e o secret do
-webhook nunca voltam pro client: `select` revogado para `authenticated`
-na migration `0006`). Desconectar volta pro número compartilhado e
-limpa as credenciais salvas.
-
-Número próprio via **Twilio não é suportado** nesse fluxo: validar um
-número de produção na API do WhatsApp Business via Twilio exige
-aprovação da Meta por número, feita manualmente fora do app — não é
-self-service como no ZapScript (que é produto da própria plataforma).
+Quando for religada, o fluxo é self-service: a clínica conecta o
+WhatsApp dela no painel do ZapScript (QR code), cria uma API key com
+os scopes `messages:send` e `webhooks:manage`, cola em "Número de
+WhatsApp" → o MindManager busca os números dessa conta (`GET
+/public/v1/numbers`), a clínica escolhe um, e o sistema registra o
+webhook sozinho (`POST /public/v1/webhooks`). A API key e o secret do
+webhook nunca voltam pro client (`select` revogado para `authenticated`
+na migration `0006`). Número próprio via **Twilio não é suportado**
+nesse fluxo: validar um número de produção na API do WhatsApp Business
+via Twilio exige aprovação da Meta por número, feita manualmente fora
+do app — não é self-service como no ZapScript.
 
 ## Performance, branding e rate limiting (0005)
 

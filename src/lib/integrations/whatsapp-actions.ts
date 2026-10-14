@@ -7,6 +7,13 @@ import { ensureTenantId } from "@/lib/tenant";
 
 const ZAPSCRIPT_BASE_URL = process.env.ZAPSCRIPT_BASE_URL || "https://api.zapscript.me";
 
+// Decisão de produto (2026-10-14): por enquanto só o número único do
+// MindManager (ZAPSCRIPT_API_KEY/ZAPSCRIPT_NUMBER_ID da plataforma) manda
+// mensagem — nenhuma clínica conecta número próprio. A UI já não oferece
+// essa opção (ver WhatsappConnection), mas a trava real tem que ficar
+// aqui: server action é um endpoint, chamável direto sem passar pela UI.
+const OWN_WHATSAPP_NUMBER_ENABLED = false;
+
 type ZapscriptNumber = {
   id: string;
   phoneNumber: string;
@@ -52,6 +59,13 @@ async function requireAdminProfile() {
 export async function listOwnZapscriptNumbers(apiKey: string) {
   await requireAdminProfile();
 
+  if (!OWN_WHATSAPP_NUMBER_ENABLED) {
+    return {
+      numbers: [] as ZapscriptNumber[],
+      error: "Conectar número próprio não está disponível por enquanto — use o número do MindManager.",
+    };
+  }
+
   if (!apiKey.trim()) {
     return { numbers: [] as ZapscriptNumber[], error: "Informe a API key." };
   }
@@ -85,6 +99,13 @@ export async function listOwnZapscriptNumbers(apiKey: string) {
 // número próprio em vez do compartilhado da plataforma.
 export async function connectOwnWhatsapp(input: { apiKey: string; numberId: string }) {
   const { supabase, tenantId } = await requireAdminProfile();
+
+  if (!OWN_WHATSAPP_NUMBER_ENABLED) {
+    return {
+      success: false as const,
+      error: "Conectar número próprio não está disponível por enquanto — use o número do MindManager.",
+    };
+  }
 
   if (!input.apiKey.trim() || !input.numberId.trim()) {
     return { success: false as const, error: "Informe a API key e escolha um número." };
